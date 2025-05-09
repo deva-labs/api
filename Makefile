@@ -1,0 +1,54 @@
+# Include spinner utils
+UTILS := ./scripts/utils.sh
+SHELL := /bin/bash
+FRAMEWORK := golang-fiber
+export
+
+# Targets
+.PHONY: all install create-env create-dockerfile create-docker-compose \
+        create-entrypoint create-main install-go init install-air air-init \
+        clean docker-build docker-run docker-compose-up clean
+
+all: install
+
+install: create-env create-dockerfile create-docker-compose create-entrypoint \
+              create-main install-go init install-air air-init docker-compose-up clean
+
+create-env:
+	@source $(UTILS) && with_progress_bar ".env" "./scripts/$(FRAMEWORK)/create-env.sh" "creating"
+
+create-dockerfile:
+	@source $(UTILS) && with_progress_bar "Dockerfile" "./scripts/$(FRAMEWORK)/create-dockerfile.sh" "creating"
+
+create-docker-compose:
+	@source $(UTILS) && with_progress_bar "docker-compose.yml" "./scripts/$(FRAMEWORK)/create-docker-compose.sh" "creating"
+
+create-entrypoint:
+	@source $(UTILS) && with_progress_bar "entrypoint.sh" "./scripts/$(FRAMEWORK)/create-entrypoint.sh" "creating"
+
+create-main:
+	@source $(UTILS) && with_progress_bar "main.go" "./scripts/$(FRAMEWORK)/create-main.sh" "creating"
+
+install-go:
+	@source $(UTILS) && with_progress_bar "Golang" "./scripts/$(FRAMEWORK)/install-golang.sh" "installing"
+
+init:
+	@source $(UTILS) && with_progress_bar "Go module" "./scripts/$(FRAMEWORK)/init-golang.sh" "initializing"
+
+install-air:
+	@source $(UTILS) && with_progress_bar "Air" "./scripts/$(FRAMEWORK)/install-air.sh" "installing"
+
+air-init:
+	@source $(UTILS) && with_progress_bar "Air config" "./scripts/$(FRAMEWORK)/init-air.sh" "initializing"
+
+docker-build:
+	@source $(UTILS) && with_progress_bar "Docker image" "./scripts/$(FRAMEWORK)/docker-build.sh" "building"
+
+docker-run:
+	@source $(UTILS) && with_progress_bar "Docker container" "./scripts/$(FRAMEWORK)/docker-run.sh" "running"
+
+docker-compose-up:
+	@source $(UTILS) && with_progress_bar "docker-compose" "./scripts/$(FRAMEWORK)/docker-compose-up.sh" "starting"
+
+clean:
+	@source $(UTILS) && with_progress_bar "app" "./scripts/$(FRAMEWORK)/clean.sh" "cleaning"
