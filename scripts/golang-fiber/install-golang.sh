@@ -2,15 +2,25 @@
 
 set -e
 
-WORK_DIR="fiber-with-docker"
-ENV_FILE="$WORK_DIR/.env"
+# Use PROJECT_NAME from environment or default
+PROJECT_NAME="${PROJECT_NAME:-fiber}"
+APP_BASE="/app"
 
-# Load .env if exists
+if [ -d "$APP_BASE" ]; then
+    WORK_DIR="public/$PROJECT_NAME"
+    ENV_FILE="${APP_BASE}/${WORK_DIR}/.env"
+else
+    WORK_DIR="public/$PROJECT_NAME"
+    ENV_FILE="${WORK_DIR}/.env"
+fi
+
+# Load .env if it exists
 if [ -f "$ENV_FILE" ]; then
     echo "📂 Loading environment from $ENV_FILE"
     export $(grep -v '^#' "$ENV_FILE" | xargs)
 else
     echo "⚠️  No .env file found at $ENV_FILE"
+    exit 1
 fi
 
 # Ensure GO_VERSION is set
@@ -24,7 +34,7 @@ if command -v go &> /dev/null; then
     INSTALLED_GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
     if [ "$INSTALLED_GO_VERSION" == "$GO_VERSION" ]; then
         echo "✅ Go $GO_VERSION is already installed!"
-        exit 0  # Exit the script if the correct Go version is already installed
+        exit 0
     else
         echo "⚠️ Go is already installed, but version mismatch. Installing Go $GO_VERSION..."
     fi
@@ -32,7 +42,7 @@ else
     echo "❌ Go is not installed. Installing Go $GO_VERSION..."
 fi
 
-# Define variables
+# Download and install Go
 GO_TAR="go$GO_VERSION.linux-amd64.tar.gz"
 GO_URL="https://go.dev/dl/$GO_TAR"
 INSTALL_DIR="/usr/local"
@@ -57,14 +67,14 @@ sudo tar -C "$INSTALL_DIR" -xzf "$GO_TAR"
 echo "🧼 Cleaning up"
 rm "$GO_TAR"
 
-# Ensure Go is in PATH for the current shell
+# Add Go to PATH for current session
 export PATH=$PATH:/usr/local/go/bin
 
 echo "✅ Go $GO_VERSION installed successfully!"
-echo "👉 Add the following to your ~/.bashrc if not already set:"
+echo "👉 Add this to your ~/.bashrc or ~/.zshrc if not already set:"
 echo 'export PATH=$PATH:/usr/local/go/bin'
 
-# Check if Go is correctly installed
+# Verify installation
 echo "🔍 Checking if Go is properly installed..."
 if ! command -v go &> /dev/null; then
     echo "❌ Go installation failed. Please ensure that Go is correctly installed."

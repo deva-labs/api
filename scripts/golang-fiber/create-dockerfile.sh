@@ -1,43 +1,99 @@
 #!/bin/bash
-
 set -e
 
-if [ -f fiber-with-docker/.env ]; then
-    export $(grep -v '^#' fiber-with-docker/.env | xargs)
-fi
+# --- Configuration ---
+PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
+BASE_DIR="/app"
+WORKDIR="public/${PROJECT_NAME}"
+ENV_FILE="${BASE_DIR}/${WORKDIR}/.env"
+ALT_ENV_FILE="./${WORKDIR}/.env"
+MAIN_DOCKERFILE="${WORKDIR}/Dockerfile"
+MYSQL_DOCKERFILE="${WORKDIR}/Dockerfile.mysql"
 
-# Remove old Dockerfile
-rm -f fiber-with-docker/Dockerfile
+log() {
+  echo "[INFO] $1"
+}
 
-: "${ENV:?ENV environment variable not set}"
-# Build Dockerfile content
-if [ "$ENV" = "dev" ]; then
-    cat <<EOF > fiber-with-docker/Dockerfile
-FROM golang:${GO_VERSION}
-RUN apt update && apt install -y default-mysql-client
-RUN go install github.com/air-verse/air@latest && mv \$(go env GOPATH)/bin/air /usr/local/bin/
-WORKDIR /app
-COPY .air.toml ./
-COPY go.mod go.sum ./
-RUN go mod tidy && go mod download
-COPY . ./
-RUN air init || true
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-ENTRYPOINT ["/bin/sh", "-c", "/app/entrypoint.sh"]
-EOF
+# --- Create working directory if it doesn't exist ---
+mkdir -p "$WORKDIR"
+
+# --- Load .env ---
+if [ -f "$ENV_FILE" ]; then
+    SOURCE_ENV="$ENV_FILE"
+elif [ -f "$ALT_ENV_FILE" ]; then
+    SOURCE_ENV="$ALT_ENV_FILE"
 else
-    cat <<EOF > fiber-with-docker/Dockerfile
-FROM golang:${GO_VERSION}
-RUN apt update && apt install -y default-mysql-client
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod tidy && go mod download
-COPY . ./
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-ENTRYPOINT ["/bin/sh", "-c", "/app/entrypoint.sh"]
-EOF
+    echo "❌ .env file not found at $ENV_FILE or fallback $ALT_ENV_FILE"
+    exit 1
 fi
 
-exit 0
+while IFS='=' read -r key value; do
+    [[ $key =~ ^#.*$ || -z $key ]] && continue
+    value=$(echo "$value" | sed "s/^['\"]//;s/['\"]$//")
+    export "$key"="$value"
+done < "$SOURCE_ENV"
+log "Loaded environment variables from $SOURCE_ENV"
+
+# --- Verify required variables ---
+: "${ENV:?❌ ENV environment variable not set}"
+: "${GO_VERSION:?❌ GO_VERSION environment variable not set}"
+
+# --- Clean old Dockerfiles ---
+rm -f "$MAIN_DOCKERFILE" "$MYSQL_DOCKERFILE"
+
+# --- Generate MySQL Dockerfile ---
+log "Generating MySQL Dockerfile..."
+cat <<EOF > "$MYSQL_DOCKERFILE"
+FROM mysql:latest
+EOF
+
+# --- Generate main Dockerfile ---
+log "Generating main Dockerfile for ENV=$ENV..."
+
+if [ "$ENV" = "dev" ]; then
+  cat <<EOF > "$MAIN_DOCKERFILE"
+FROM golang:${GO_VERSION}-alpine
+
+RUN apk update && apk add --no-cache \\
+    mariadb-client \\
+    inotify-tools \\
+    bash
+
+RUN go install github.com/air-verse/air@latest && \\
+    mv "\$(go env GOPATH)/bin/air" /usr/local/bin/
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
+COPY .air.toml ./
+COPY . .
+
+ENTRYPOINT ["/bin/sh", "entrypoint.sh"]
+EOF
+
+else
+  cat <<EOF > "$MAIN_DOCKERFILE"
+FROM golang:${GO_VERSION}-alpine
+
+RUN apk update && apk add --no-cache \\
+    mariadb-client \\
+    bash
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
+COPY . .
+
+ENTRYPOINT ["/bin/sh", "entrypoint.sh"]
+EOF
+fi

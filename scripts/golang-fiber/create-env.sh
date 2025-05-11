@@ -2,13 +2,26 @@
 
 set -e
 
-rm -f .env
+# Check if /app exists
+if [ -d "/app" ]; then
+  # Clean up old .env if inside /app
+  rm -f "/app/public/${PROJECT_NAME}/.env"
+  echo "[INFO] Old .env file removed from /app/public/${PROJECT_NAME}/.env"
+else
+  # Clean up old .env if outside /app
+  rm -f "public/${PROJECT_NAME}/.env"
+  echo "[INFO] Old .env file removed from public/${PROJECT_NAME}/.env"
+fi
 
-mkdir -p fiber-with-docker
+# Ensure directory exists
+mkdir -p "public/${PROJECT_NAME}"
 
-cat <<EOF > fiber-with-docker/.env
+# Create new .env file
+cat <<EOF > "public/${PROJECT_NAME}/.env"
 GO_VERSION=1.24.2
 APP_NAME=dockerwizard-api
+VERSION=1.0.0
+FRAMEWORK=fiber
 GO_TAR=go\${GO_VERSION}.linux-amd64.tar.gz
 WITH_DB=yes
 RUN_WITH_DOCKER_COMPOSE=yes
@@ -20,3 +33,4 @@ DB_USER=admin
 DB_PORT=3307
 APP_PORT=2350
 EOF
+sleep 60
