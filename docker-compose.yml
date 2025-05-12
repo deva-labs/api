@@ -19,6 +19,8 @@ services:
     image: ${APP_NAME}-${FRAMEWORK}:${VERSION}
     container_name: ${APP_NAME}-${FRAMEWORK}
     restart: always
+    tty: true
+    stdin_open: true
     ports:
       - "${APP_PORT}:${APP_PORT}"
     volumes:

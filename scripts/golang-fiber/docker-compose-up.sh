@@ -2,44 +2,63 @@
 
 set -e
 
-# Set default project folder name
-PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
-BASE_DIR="/app"
+# Set default values if not provided
+PROJECT_NAME="${PROJECT_NAME:-fiber}"
+BASE_DIR="${BASE_DIR:-/app}"
+CONTEXT_NAME="${CONTEXT_NAME:-myremote}"
+
 ENV_PATH="${BASE_DIR}/public/${PROJECT_NAME}/.env"
 
-# Check if /app exists and adjust ENV_PATH accordingly
-if [ -d "/app" ]; then
-    echo "[INFO] /app directory found, loading .env from $ENV_PATH"
+# Check BASE_DIR existence
+if [ -d "$BASE_DIR" ]; then
+  echo "[INFO] $BASE_DIR not found, loading .env from $ENV_PATH"
 else
     ENV_PATH="public/${PROJECT_NAME}/.env"
-    echo "[INFO] /app directory not found, loading .env from $ENV_PATH"
+    echo "[INFO] $BASE_DIR not found, loading .env from $ENV_PATH"
 fi
 
-# Load environment variables
+# Load .env variables
 if [ -f "$ENV_PATH" ]; then
     export $(grep -v '^#' "$ENV_PATH" | xargs)
 else
-    echo "❌ .env file not found at $ENV_PATH"
     exit 1
 fi
 
-# Ensure required variables are defined
+# Ensure essential variables exist
 : "${RUN_WITH_DOCKER_COMPOSE:?❌ RUN_WITH_DOCKER_COMPOSE environment variable is not set}"
 : "${PROJECT_NAME:?❌ PROJECT_NAME is not set}"
+: "${TLSCACERT_PATH:?❌ TLSCACERT_PATH is not set}"
+: "${TLSCERT_PATH:?❌ TLSCERT_PATH is not set}"
+: "${TLSKEY_PATH:?❌ TLSKEY_PATH is not set}"
+: "${CONTEXT_NAME:?❌ CONTEXT_NAME is not set}"
 
-# Change into project directory
-cd "${BASE_DIR}/public/${PROJECT_NAME}"
+# Change to project directory
+cd "${BASE_DIR}/public/${PROJECT_NAME}" >/dev/null 2>&1
 
-# Remote build when RUN_WITH_DOCKER_COMPOSE=yes
+# Docker context setup (quiet mode)
+if ! docker context inspect "$CONTEXT_NAME" >/dev/null 2>&1; then
+  docker context create "$CONTEXT_NAME" \
+    --docker "host=tcp://192.168.237.116:2376,ca=${TLSCACERT_PATH},cert=${TLSCERT_PATH},key=${TLSKEY_PATH}" >/dev/null 2>&1
+fi
+
+docker context use "$CONTEXT_NAME" >/dev/null 2>&1
+
+# Execute commands based on RUN_WITH_DOCKER_COMPOSE
 if [ "$RUN_WITH_DOCKER_COMPOSE" == "yes" ]; then
-    docker buildx bake --load
-
+    docker buildx bake --load >/dev/null 2>&1
+    sleep 3
     if docker compose version &> /dev/null; then
-        docker compose up -d
+        docker compose up -d >/dev/null 2>&1
+        sleep 1
     else
-        docker-compose up -d
+        docker-compose up -d >/dev/null 2>&1
+        sleep 1
     fi
 else
-    make docker-build
-    make docker-run
+    echo "[INFO] Running local Docker build and run using Makefile..."
+    make docker-build >/dev/null 2>&1
+    make docker-run >/dev/null 2>&1
 fi
+
+sleep 1
+exit 0

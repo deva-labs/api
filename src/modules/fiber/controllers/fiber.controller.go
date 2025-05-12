@@ -3,9 +3,9 @@ package controllers
 import (
 	"dockerwizard-api/src/modules/fiber/services"
 	"dockerwizard-api/src/utils"
+	"dockerwizard-api/store"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
-	"os"
 	"path/filepath"
 	"time"
 )
@@ -13,12 +13,9 @@ import (
 // CreateNewFiberProject is a controller function to handle create new fiber project
 func CreateNewFiberProject(c *fiber.Ctx) error {
 	var requestData struct {
-		ProjectName  string `json:"project_name"`
-		Framework    string `json:"framework"`
-		RemoteConfig *struct {
-			DockerHost    string `json:"docker_host"`
-			UseDefaultTLS bool   `json:"use_default_tls"`
-		} `json:"remote_config,omitempty"`
+		ProjectName string `json:"project_name"`
+		Framework   string `json:"framework"`
+		UserID      uint   `json:"user_id"`
 	}
 
 	// Bind the incoming JSON request data to requestData struct
@@ -32,44 +29,16 @@ func CreateNewFiberProject(c *fiber.Ctx) error {
 		})
 	}
 
-	var remoteConfig *services.RemoteBuildConfig
-	if requestData.RemoteConfig != nil {
-		// Set default TLS paths if requested
-		tlsCA := ""
-		tlsCert := ""
-		tlsKey := ""
-
-		if requestData.RemoteConfig.UseDefaultTLS {
-			// Use the default paths where we copied the certs
-			basePath := filepath.Join("store", "secrets")
-			tlsCA = filepath.Join(basePath, "ca.pem")
-			tlsCert = filepath.Join(basePath, "cert.pem")
-			tlsKey = filepath.Join(basePath, "key.pem")
-
-			// Verify the cert files exist
-			if _, err := os.Stat(tlsCA); os.IsNotExist(err) {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"status": fiber.Map{
-						"code":    fiber.StatusBadRequest,
-						"message": "Default TLS CA certificate not found",
-					},
-					"error": fmt.Sprintf("CA certificate not found at: %s", tlsCA),
-				})
-			}
-			// Similar checks for other cert files...
-		}
-
-		remoteConfig = &services.RemoteBuildConfig{
-			DockerHost:    requestData.RemoteConfig.DockerHost,
-			TLSCACertPath: tlsCA,
-			TLSCertPath:   tlsCert,
-			TLSKeyPath:    tlsKey,
-			ProjectName:   requestData.ProjectName,
-		}
+	// Get socket id from user
+	conn, _ := store.GetUserSocket(requestData.UserID)
+	if conn == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "WebSocket connection not found for user",
+		})
 	}
 
 	// Call the service function to create the fiber project
-	zipPath, serviceErr := services.CreateFiberProject(requestData.ProjectName, requestData.Framework, remoteConfig)
+	zipPath, serviceErr := services.CreateFiberProject(conn, requestData.ProjectName, requestData.Framework)
 	if serviceErr != nil {
 		return c.Status(serviceErr.StatusCode).JSON(fiber.Map{
 			"status": fiber.Map{
@@ -89,17 +58,6 @@ func CreateNewFiberProject(c *fiber.Ctx) error {
 			"file_name": filepath.Base(zipPath),
 			"path":      zipPath,
 		},
-	}
-
-	if remoteConfig != nil {
-		remoteInfo := fiber.Map{
-			"docker_host": remoteConfig.DockerHost,
-			"status":      "configured",
-		}
-		if requestData.RemoteConfig.UseDefaultTLS {
-			remoteInfo["tls_config"] = "using_default_certificates"
-		}
-		responseData["remote_build"] = remoteInfo
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{

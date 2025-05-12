@@ -16,10 +16,9 @@ fi
 
 # Load .env if it exists
 if [ -f "$ENV_PATH" ]; then
-    echo "📂 Loading environment from $ENV_PATH"
     export $(grep -v '^#' "$ENV_PATH" | xargs)
 else
-    echo "⚠️  No .env file found at $ENV_PATH"
+    echo "⚠️  No .env file found"
 fi
 
 # Verify APP_NAME is set
@@ -36,9 +35,9 @@ else
     echo "📦 go.mod already exists — skipping init."
 fi
 
-# Tidy up dependencies (creates go.sum if needed)
-echo "📚 Running go mod tidy..."
 go mod tidy
 
 echo "✅ Go module initialized and tidy complete."
+
+sleep 1
 exit 0

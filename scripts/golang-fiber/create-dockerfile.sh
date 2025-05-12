@@ -10,10 +10,6 @@ ALT_ENV_FILE="./${WORKDIR}/.env"
 MAIN_DOCKERFILE="${WORKDIR}/Dockerfile"
 MYSQL_DOCKERFILE="${WORKDIR}/Dockerfile.mysql"
 
-log() {
-  echo "[INFO] $1"
-}
-
 # --- Create working directory if it doesn't exist ---
 mkdir -p "$WORKDIR"
 
@@ -32,7 +28,6 @@ while IFS='=' read -r key value; do
     value=$(echo "$value" | sed "s/^['\"]//;s/['\"]$//")
     export "$key"="$value"
 done < "$SOURCE_ENV"
-log "Loaded environment variables from $SOURCE_ENV"
 
 # --- Verify required variables ---
 : "${ENV:?❌ ENV environment variable not set}"
@@ -42,13 +37,11 @@ log "Loaded environment variables from $SOURCE_ENV"
 rm -f "$MAIN_DOCKERFILE" "$MYSQL_DOCKERFILE"
 
 # --- Generate MySQL Dockerfile ---
-log "Generating MySQL Dockerfile..."
 cat <<EOF > "$MYSQL_DOCKERFILE"
 FROM mysql:latest
 EOF
 
 # --- Generate main Dockerfile ---
-log "Generating main Dockerfile for ENV=$ENV..."
 
 if [ "$ENV" = "dev" ]; then
   cat <<EOF > "$MAIN_DOCKERFILE"
@@ -97,3 +90,6 @@ COPY . .
 ENTRYPOINT ["/bin/sh", "entrypoint.sh"]
 EOF
 fi
+
+sleep 1
+exit 0

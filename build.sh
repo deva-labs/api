@@ -23,13 +23,6 @@ if [ ! -f Makefile ]; then
   exit 1
 fi
 
-if ! docker context inspect "$CONTEXT_NAME" >/dev/null 2>&1; then
-  docker context create myremote \
-    --docker "host=tcp://192.168.237.116:2376,ca=/app/store/secrets/ca.pem,cert=/app/store/secrets/cert.pem,key=/app/store/secrets/key.pem"
-fi
-
-docker context use "$CONTEXT_NAME"
-
 if ! docker info >/dev/null 2>&1; then
   echo "❌ Failed to connect to Docker daemon using context '$CONTEXT_NAME'."
   echo "🔧 Please check your certificate files and DOCKER_HOST."

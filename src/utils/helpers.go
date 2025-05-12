@@ -1,10 +1,18 @@
 package utils
 
 import (
+	"dockerwizard-api/src/lib/interfaces"
+	"fmt"
+	"github.com/creack/pty"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/websocket/v2"
 	"math"
 	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
+	"strings"
+	"time"
 )
 
 func Paginate(total int64, page, perPage int) (map[string]interface{}, error) {
@@ -107,4 +115,81 @@ func BindJson(c *fiber.Ctx, request interface{}) *ServiceError {
 		}
 	}
 	return nil
+}
+
+func ExecWithAnimation(sc *interfaces.SafeConn, msg, command, action string, envVars map[string]string) error {
+	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinnerIndex := 0
+	startTime := time.Now()
+
+	cmd := exec.Command("bash", "-c", command)
+	cmd.Env = os.Environ()
+	for key, value := range envVars {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	}
+
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		sc.SafeWrite(websocket.TextMessage, []byte(fmt.Sprintf("✗ Failed to start command: %v", err)))
+		return fmt.Errorf("failed to start command '%s': %w", command, err)
+	}
+	defer ptmx.Close()
+
+	done := make(chan error, 1)
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := ptmx.Read(buf)
+			if n > 0 {
+				sc.SafeWrite(websocket.TextMessage, buf[:n])
+			}
+			if err != nil {
+				break
+			}
+		}
+		done <- cmd.Wait()
+	}()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	var execErr error
+
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			spinner := spinnerFrames[spinnerIndex%len(spinnerFrames)]
+			elapsed := time.Since(startTime).Seconds()
+			line := fmt.Sprintf("\r%s %s %s... %.2fs      ", spinner, strings.Title(action), msg, elapsed)
+			sc.SafeWrite(websocket.TextMessage, []byte(line))
+			spinnerIndex++
+		case err := <-done:
+			elapsed := time.Since(startTime).Seconds()
+			clearLine := fmt.Sprintf("\r%s\r", strings.Repeat(" ", 80))
+			sc.SafeWrite(websocket.TextMessage, []byte(clearLine))
+
+			if err == nil {
+				actionDone := transformAction(action)
+				successLine := fmt.Sprintf("✔ Successfully %s %s", actionDone, msg)
+				sc.SafeWrite(websocket.TextMessage, []byte(successLine))
+				sc.SafeWrite(websocket.TextMessage, []byte(fmt.Sprintf("\n⏱️ Step Completed in %.2fs\n", elapsed)))
+			} else {
+				failLine := fmt.Sprintf("✗ Failed to %s %s (after %.2fs)", action, msg, elapsed)
+				sc.SafeWrite(websocket.TextMessage, []byte(failLine))
+				sc.SafeWrite(websocket.TextMessage, []byte(fmt.Sprintf("Error details: %v", err)))
+				execErr = fmt.Errorf("command failed: %w", err)
+			}
+			break loop
+		}
+	}
+
+	return execErr
+}
+
+func transformAction(action string) string {
+	if strings.HasSuffix(action, "ing") {
+		return strings.TrimSuffix(action, "ing") + "ed"
+	}
+	return action
 }

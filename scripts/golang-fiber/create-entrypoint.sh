@@ -2,11 +2,6 @@
 
 set -e
 
-# Logging helper
-log() {
-  echo "[INFO] $1"
-}
-
 # Support dynamic folder via PROJECT_NAME
 PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
 BASE_DIR="/app"
@@ -22,17 +17,11 @@ if [ -f "$ENV_FILE_ABSOLUTE" ]; then
     ENV_FILE="$ENV_FILE_ABSOLUTE"
 elif [ -f "$ENV_FILE_RELATIVE" ]; then
     ENV_FILE="$ENV_FILE_RELATIVE"
-    log "⚠️  Using relative path for .env file as absolute path not found"
 else
-    echo "❌ .env not found at either $ENV_FILE_ABSOLUTE or $ENV_FILE_RELATIVE"
     exit 1
 fi
 
-log "📂 Working directory: $WORKDIR"
-log "📄 Loading env from: $ENV_FILE"
-
 export $(grep -v '^#' "$ENV_FILE" | xargs)
-log ".env loaded successfully"
 
 # Check required variables
 : "${APP_NAME:?❌ APP_NAME environment variable not set}"
@@ -40,8 +29,6 @@ log ".env loaded successfully"
 
 # Remove old entrypoint if it exists
 rm -f "$ENTRYPOINT"
-
-log "⚙️ Generating entrypoint for ENV=$ENV"
 
 if [ "$ENV" = "dev" ]; then
 cat <<EOF > "$ENTRYPOINT"
@@ -79,5 +66,5 @@ else
   exit 1
 fi
 
-chmod +x "$ENTRYPOINT"
-log "✅ Entrypoint script created at $ENTRYPOINT"
+sleep 1
+exit 0

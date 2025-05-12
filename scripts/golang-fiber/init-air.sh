@@ -2,11 +2,6 @@
 
 set -e
 
-# Function to log messages
-log() {
-    echo "[INFO] $1"
-}
-
 # Set default project folder if not passed via env
 PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
 BASE_DIR="/app"
@@ -21,14 +16,11 @@ fi
 
 AIR_TOML_PATH="${AIR_TOML_DIR}/.air.toml"
 
-log "🔍 Loading environment from $ENV_PATH"
-
 # Load environment variables if .env exists
 if [ -f "$ENV_PATH" ]; then
     export $(grep -v '^#' "$ENV_PATH" | xargs)
-    log ".env file loaded successfully"
 else
-    log "⚠️  .env file not found at $ENV_PATH"
+    echo "⚠️  .env file not found at $ENV_PATH"
 fi
 
 # Check required environment variables
@@ -37,14 +29,11 @@ fi
 
 # Create .air.toml if missing
 if [ ! -f "$AIR_TOML_PATH" ]; then
-    log "🛠️ Creating .air.toml..."
     mkdir -p "$AIR_TOML_DIR/bin"
     (cd "$AIR_TOML_DIR" && air init)
 else
-    log "✅ .air.toml already exists"
+    echo "✅ .air.toml already exists"
 fi
-
-log "🔧 Updating .air.toml config"
 
 # Ensure tmp_dir is set
 if grep -q "^tmp_dir =" "$AIR_TOML_PATH"; then
@@ -77,5 +66,7 @@ if ! grep -q 'level = "debug"' "$AIR_TOML_PATH"; then
     sed -i '/^\[log\]/ a\  level = "debug"' "$AIR_TOML_PATH"
 fi
 
-log "✅ .air.toml configured successfully in $AIR_TOML_DIR"
+echo "✅ .air.toml configured successfully"
+
+sleep 1
 exit 0

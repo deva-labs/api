@@ -24,4 +24,10 @@ func RegisterRoutes(app *fiber.App) {
 	{
 		newProject.Post("", controllers.CreateNewFiberProject)
 	}
+
+	// Testing Routes
+	//testingRoutes := api.Group("/testing")
+	//{
+	//	testingRoutes.Post("/animation", tests.TestProgressBar60Seconds)
+	//}
 }

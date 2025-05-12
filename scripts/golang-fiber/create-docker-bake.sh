@@ -8,22 +8,15 @@ WORKDIR="public/${PROJECT_NAME}"
 ENV_FILE="${BASE_DIR}/${WORKDIR}/.env"
 OUTPUT_FILE="${WORKDIR}/docker-bake.hcl"
 
-log() {
-  echo "[INFO] $1"
-}
-
 # --- Load .env ---
 if [ -f "$ENV_FILE" ]; then
     export $(grep -v '^#' "$ENV_FILE" | xargs)
-    log "Loaded environment variables from $ENV_FILE"
 else
     ALT_ENV_FILE="./${WORKDIR}/.env"
     if [ -f "$ALT_ENV_FILE" ]; then
         ENV_FILE="$ALT_ENV_FILE"
         export $(grep -v '^#' "$ENV_FILE" | xargs)
-        log "Loaded environment variables from fallback path $ALT_ENV_FILE"
     else
-        echo "❌ .env file not found at $ENV_FILE or fallback $ALT_ENV_FILE"
         exit 1
     fi
 fi
@@ -77,3 +70,6 @@ target "db" {
   }
 }
 EOF
+
+sleep 1
+exit 0

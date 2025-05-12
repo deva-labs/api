@@ -3,7 +3,6 @@ module dockerwizard-api
 go 1.24.2
 
 require (
-	github.com/charmbracelet/x/term v0.2.1
 	github.com/creack/pty v1.1.24
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/gofiber/websocket/v2 v2.2.1

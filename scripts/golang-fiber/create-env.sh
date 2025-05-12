@@ -19,7 +19,7 @@ mkdir -p "public/${PROJECT_NAME}"
 # Create new .env file
 cat <<EOF > "public/${PROJECT_NAME}/.env"
 GO_VERSION=1.24.2
-APP_NAME=dockerwizard-api
+APP_NAME=${PROJECT_NAME}
 VERSION=1.0.0
 FRAMEWORK=fiber
 GO_TAR=go\${GO_VERSION}.linux-amd64.tar.gz
@@ -27,10 +27,12 @@ WITH_DB=yes
 RUN_WITH_DOCKER_COMPOSE=yes
 ENV=dev
 IMAGE_NAME=\${APP_NAME}:latest
-DB_PASS=dockerwizard-admin
-DB_NAME=dockerwizard
+DB_PASS=${PROJECT_NAME}-admin
+DB_NAME=${PROJECT_NAME}
 DB_USER=admin
 DB_PORT=3307
 APP_PORT=2350
 EOF
-sleep 60
+
+sleep 1
+exit 0
