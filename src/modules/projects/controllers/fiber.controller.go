@@ -1,7 +1,7 @@
-package controllers
+package projects
 
 import (
-	"dockerwizard-api/src/modules/fiber/services"
+	projects "dockerwizard-api/src/modules/projects/services"
 	"dockerwizard-api/src/utils"
 	"dockerwizard-api/store"
 	"fmt"
@@ -13,9 +13,9 @@ import (
 // CreateNewFiberProject is a controller function to handle create new fiber project
 func CreateNewFiberProject(c *fiber.Ctx) error {
 	var requestData struct {
-		ProjectName string `json:"project_name"`
-		Framework   string `json:"framework"`
-		UserID      uint   `json:"user_id"`
+		ProjectName string            `json:"project_name"`
+		UserID      uint              `json:"user_id"`
+		Env         map[string]string `json:"env"`
 	}
 
 	// Bind the incoming JSON request data to requestData struct
@@ -29,16 +29,16 @@ func CreateNewFiberProject(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get socket id from user
+	// Get socket id from users
 	conn, _ := store.GetUserSocket(requestData.UserID)
 	if conn == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "WebSocket connection not found for user",
+			"error": "WebSocket connection not found for users",
 		})
 	}
 
 	// Call the service function to create the fiber project
-	zipPath, serviceErr := services.CreateFiberProject(conn, requestData.ProjectName, requestData.Framework)
+	zipPath, serviceErr := projects.CreateFiberProject(conn, requestData.ProjectName, requestData.Env)
 	if serviceErr != nil {
 		return c.Status(serviceErr.StatusCode).JSON(fiber.Map{
 			"status": fiber.Map{
@@ -49,10 +49,10 @@ func CreateNewFiberProject(c *fiber.Ctx) error {
 		})
 	}
 
-	// Prepare response data
+	// Response
 	responseData := fiber.Map{
 		"project_name": requestData.ProjectName,
-		"framework":    requestData.Framework,
+		"framework":    requestData.Env["FRAMEWORK"],
 		"created_at":   time.Now().Format(time.RFC3339),
 		"download": fiber.Map{
 			"file_name": filepath.Base(zipPath),
@@ -65,7 +65,7 @@ func CreateNewFiberProject(c *fiber.Ctx) error {
 			"code": fiber.StatusCreated,
 			"message": fmt.Sprintf("Project '%s' with framework '%s' created successfully",
 				requestData.ProjectName,
-				requestData.Framework),
+				requestData.Env["FRAMEWORK"]),
 		},
 		"data": responseData,
 	})

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func RunProjectWorkflow(c *websocket.Conn, projectName string) error {
+func RunProjectWorkflow(c *websocket.Conn, projectName string, env map[string]string) error {
 	sc := &interfaces.SafeConn{Conn: c}
 
 	baseEnv := map[string]string{
@@ -20,6 +20,10 @@ func RunProjectWorkflow(c *websocket.Conn, projectName string) error {
 		"TLSCERT_PATH":   "/app/store/secrets/cert.pem",
 		"TLSKEY_PATH":    "/app/store/secrets/key.pem",
 		"CONTEXT_NAME":   "myremote",
+	}
+
+	for k, v := range env {
+		baseEnv[k] = v
 	}
 
 	steps := []interfaces.WorkflowStep{

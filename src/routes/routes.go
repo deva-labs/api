@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"dockerwizard-api/src/modules/fiber/controllers"
+	"dockerwizard-api/src/modules/projects/controllers"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -20,9 +20,9 @@ func RegisterRoutes(app *fiber.App) {
 		return c.JSON(fiber.Map{"status": "ready"})
 	})
 
-	newProject := api.Group("/create-project")
+	projectsRoutes := api.Group("projects")
 	{
-		newProject.Post("", controllers.CreateNewFiberProject)
+		projectsRoutes.Post("create", projects.CreateNewFiberProject)
 	}
 
 	// Testing Routes

@@ -2,9 +2,6 @@
 
 set -e
 
-
-# Support dynamic project folder via PROJECT_NAME
-PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
 BASE_DIR="/app"
 ENV_PATH="${BASE_DIR}/public/${PROJECT_NAME}/.env"
 
@@ -25,7 +22,7 @@ fi
 # Verify required environment variables
 : "${APP_NAME:?❌ APP_NAME is not set in environment}"
 : "${FRAMEWORK:?❌ FRAMEWORK is not set in environment}"
-: "${VERSION:?❌ VERSION is not set in environment}"
+: "${APP_VERSION:?❌ APP_VERSION is not set in environment}"
 
 # Change to project directory
 PROJECT_DIR="${BASE_DIR}/public/${PROJECT_NAME}"
@@ -35,7 +32,7 @@ else
     exit 1
 fi
 
-docker build -t "${APP_NAME}-${FRAMEWORK}:${VERSION}" .
+docker build -t "${APP_NAME}-${FRAMEWORK}:${APP_VERSION}" .
 
 sleep 1
 exit 0

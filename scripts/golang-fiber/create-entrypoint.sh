@@ -3,7 +3,6 @@
 set -e
 
 # Support dynamic folder via PROJECT_NAME
-PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
 BASE_DIR="/app"
 WORKDIR="public/${PROJECT_NAME}"
 

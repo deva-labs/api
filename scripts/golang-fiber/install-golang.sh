@@ -1,69 +1,48 @@
 #!/bin/bash
-
 set -e
 
-# Use PROJECT_NAME from environment or default
-PROJECT_NAME="${PROJECT_NAME:-fiber}"
-APP_BASE="/app"
-
-if [ -d "$APP_BASE" ]; then
-    WORK_DIR="public/$PROJECT_NAME"
-    ENV_FILE="${APP_BASE}/${WORK_DIR}/.env"
+# Determine env file location
+if [ -d "$BASE_DIR" ]; then
+    ENV_FILE="${BASE_DIR}/public/${PROJECT_NAME}/.env"
 else
-    WORK_DIR="public/$PROJECT_NAME"
-    ENV_FILE="${WORK_DIR}/.env"
+    ENV_FILE="public/${PROJECT_NAME}/.env"
 fi
 
 # Load .env if it exists
 if [ -f "$ENV_FILE" ]; then
-    export $(grep -v '^#' "$ENV_FILE" | xargs)
+    echo "[INFO] Loading environment from $ENV_FILE"
+    set -o allexport
+    source "$ENV_FILE"
+    set +o allexport
 else
+    echo "[ERROR] .env file not found: $ENV_FILE"
     exit 1
 fi
 
 # Ensure GO_VERSION is set
 if [ -z "$GO_VERSION" ]; then
+    echo "[ERROR] GO_VERSION not set in .env"
     exit 1
 fi
 
-# Check if Go is already installed
-if command -v go &> /dev/null; then
-    INSTALLED_GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
-    if [ "$INSTALLED_GO_VERSION" == "$GO_VERSION" ]; then
-        exit 0
-    else
-        echo "⚠️ Go is already installed, but version mismatch. Installing Go $GO_VERSION..."
-    fi
+# Target installation path
+GO_ROOT_DIR="/app/packages/go/versions/${GO_VERSION}"
+GO_BIN="${GO_ROOT_DIR}/bin/go"
+
+if [ -x "$GO_BIN" ]; then
+    echo "[INFO] Go $GO_VERSION already installed at $GO_ROOT_DIR"
 else
-    echo "❌ Go is not installed. Installing Go $GO_VERSION..."
-fi
+    # Download Go tarball
+    GO_TAR="go${GO_VERSION}.linux-amd64.tar.gz"
+    GO_URL="https://go.dev/dl/${GO_TAR}"
+    INSTALL_TAR="public/${GO_TAR}"
 
-# Download and install Go
-GO_TAR="go$GO_VERSION.linux-amd64.tar.gz"
-GO_URL="https://go.dev/dl/$GO_TAR"
-INSTALL_DIR="/usr/local"
-CONTENT_LENGTH=$(curl -sI "$GO_URL" | grep -i Content-Length | awk '{print $2}' | tr -d '\r')
+    echo "[INFO] Downloading $GO_TAR from $GO_URL..."
+    curl -sSL -o "$INSTALL_TAR" "$GO_URL"
 
-if [ -z "$CONTENT_LENGTH" ]; then
-    exit 1
-fi
-curl -s "$GO_URL" | pv -s "$CONTENT_LENGTH" > "$GO_TAR"
-
-sudo rm -rf "$INSTALL_DIR/go"
-
-sudo tar -C "$INSTALL_DIR" -xzf "$GO_TAR"
-
-rm "$GO_TAR"
-
-# Add Go to PATH for current session
-export PATH=$PATH:/usr/local/go/bin
-
-# Verify installation
-if ! command -v go &> /dev/null; then
-    echo "❌ Go installation failed. Please ensure that Go is correctly installed."
-    exit 1
-else
-    echo "✅ Go is correctly installed!"
+    mkdir -p "$GO_ROOT_DIR"
+    tar -C "$GO_ROOT_DIR" --strip-components=1 -xzf "$INSTALL_TAR"
+    rm -f "$INSTALL_TAR"
 fi
 
 sleep 1

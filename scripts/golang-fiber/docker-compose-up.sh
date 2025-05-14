@@ -2,8 +2,6 @@
 
 set -e
 
-# Set default values if not provided
-PROJECT_NAME="${PROJECT_NAME:-fiber}"
 BASE_DIR="${BASE_DIR:-/app}"
 CONTEXT_NAME="${CONTEXT_NAME:-myremote}"
 
@@ -44,7 +42,7 @@ fi
 docker context use "$CONTEXT_NAME" >/dev/null 2>&1
 
 # Execute commands based on RUN_WITH_DOCKER_COMPOSE
-if [ "$RUN_WITH_DOCKER_COMPOSE" == "yes" ]; then
+if [ "$RUN_WITH_DOCKER_COMPOSE" == "true" ]; then
     docker buildx bake --load >/dev/null 2>&1
     sleep 3
     if docker compose version &> /dev/null; then
@@ -56,8 +54,9 @@ if [ "$RUN_WITH_DOCKER_COMPOSE" == "yes" ]; then
     fi
 else
     echo "[INFO] Running local Docker build and run using Makefile..."
-    make docker-build >/dev/null 2>&1
-    make docker-run >/dev/null 2>&1
+    cd "${BASE_DIR}"
+    make docker-build PROJECT_NAME="$PROJECT_NAME" >/dev/null 2>&1
+    make docker-run PROJECT_NAME="$PROJECT_NAME" >/dev/null 2>&1
 fi
 
 sleep 1

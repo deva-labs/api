@@ -2,8 +2,6 @@
 
 set -e
 
-# Set default project folder if not passed via env
-PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
 BASE_DIR="/app"
 
 if [ -d "$BASE_DIR" ]; then

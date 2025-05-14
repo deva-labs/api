@@ -2,10 +2,6 @@
 
 set -e
 
-
-# Project name (from env or default)
-PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
-
 # Define fallback logic for ENV and MAIN file
 if [ -d "/app/public/${PROJECT_NAME}" ]; then
   BASE_DIR="/app"

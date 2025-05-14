@@ -1,4 +1,4 @@
-package services
+package projects
 
 import (
 	"dockerwizard-api/src/functions"
@@ -14,15 +14,14 @@ import (
 )
 
 // CreateFiberProject creates a new Fiber project with optional remote build configuration
-func CreateFiberProject(conn *websocket.Conn, projectName, framework string) (string, *utils.ServiceError) {
+func CreateFiberProject(conn *websocket.Conn, projectName string, env map[string]string) (string, *utils.ServiceError) {
 
 	//return "", &utils.ServiceError{
 	//	StatusCode: http.StatusServiceUnavailable,
 	//	Message:    fmt.Sprintf("Service is unavailable. Please try again later."),
 	//}
 	// Validate and sanitize inputs
-	projectName = strings.TrimSpace(projectName)
-	framework = strings.TrimSpace(framework)
+	framework := env["LANGUAGE"] + "-" + env["FRAMEWORK"]
 
 	if projectName == "" || framework == "" {
 		return "", &utils.ServiceError{
@@ -46,14 +45,14 @@ func CreateFiberProject(conn *websocket.Conn, projectName, framework string) (st
 	}
 
 	// 2. Run installation with proper terminal handling
-	if err := functions.RunProjectWorkflow(conn, finalProjectName); err != nil {
+	if err := functions.RunProjectWorkflow(conn, finalProjectName, env); err != nil {
 		return "", &utils.ServiceError{
 			StatusCode: http.StatusInternalServerError,
 			Message:    "project creation failed",
 			Err:        err,
 		}
 	}
-
+	// 3. Return a zip file path
 	zipPath, err := findProjectZip(finalProjectName)
 	if err != nil {
 		return "", &utils.ServiceError{

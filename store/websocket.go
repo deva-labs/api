@@ -11,14 +11,14 @@ var (
 	mapMutex      sync.RWMutex // Protects concurrent access
 )
 
-// SetUserSocket stores the WebSocket connection for a user
+// SetUserSocket stores the WebSocket connection for a users
 func SetUserSocket(userID uint, conn *websocket.Conn) {
 	mapMutex.Lock()
 	defer mapMutex.Unlock()
 	userSocketMap[userID] = conn
 }
 
-// GetUserSocket retrieves the WebSocket connection for a user
+// GetUserSocket retrieves the WebSocket connection for a users
 func GetUserSocket(userID uint) (*websocket.Conn, bool) {
 	mapMutex.RLock()
 	defer mapMutex.RUnlock()
@@ -26,7 +26,7 @@ func GetUserSocket(userID uint) (*websocket.Conn, bool) {
 	return conn, exists
 }
 
-// RemoveUserSocket deletes the WebSocket connection for a user
+// RemoveUserSocket deletes the WebSocket connection for a users
 func RemoveUserSocket(userID uint) {
 	mapMutex.Lock()
 	defer mapMutex.Unlock()

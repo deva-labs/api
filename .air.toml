@@ -7,7 +7,7 @@ tmp_dir = "bin"
   bin = "./bin/dockerwizard-api"
   cmd = "go build -buildvcs=false -o ./bin/dockerwizard-api ."
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata", "public"]
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "public", "packages"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false

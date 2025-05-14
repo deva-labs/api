@@ -2,8 +2,6 @@
 
 set -e
 
-# Set default project folder name
-PROJECT_NAME="${PROJECT_NAME:-fiber-with-docker}"
 BASE_DIR="/app"
 ENV_PATH="${BASE_DIR}/public/${PROJECT_NAME}/.env"
 
@@ -24,12 +22,12 @@ fi
 # Validate required environment variables
 : "${APP_NAME:?❌ APP_NAME environment variable is not set}"
 : "${FRAMEWORK:?❌ FRAMEWORK environment variable is not set}"
-: "${VERSION:?❌ VERSION environment variable is not set}"
+: "${APP_VERSION:?❌ APP_VERSION environment variable is not set}"
 : "${APP_PORT:?❌ APP_PORT environment variable is not set}"
 
 # Run Docker container
 CONTAINER_NAME="${APP_NAME}-${FRAMEWORK}"
-IMAGE_NAME="${APP_NAME}-${FRAMEWORK}:${VERSION}"
+IMAGE_NAME="${APP_NAME}-${FRAMEWORK}:${APP_VERSION}"
 
 docker run -d -p "${APP_PORT}:${APP_PORT}" --name "$CONTAINER_NAME" "$IMAGE_NAME"
 

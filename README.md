@@ -1,3 +1,152 @@
+# 🛠 DevOps SaaS Platform - Database Schema
+
+A system that helps users create software projects with CI/CD, deploy YAML (Kubernetes/Docker), import from GitHub, and manage user permissions based on subscription plans.
+
+---
+
+## 🧩 Feature Overview
+
+- Create projects from templates or GitHub repositories.
+- Generate files like `Dockerfile`, `docker-compose.yml`, `deployment.yaml`, CI pipelines, etc.
+- Deploy applications to Kubernetes or Docker hosts.
+- User permissions based on subscription plans: Free / Pro / Enterprise.
+- Support for teams, billing, secrets, webhooks, and usage tracking.
+
+---
+
+## 📊 Database Schema (20 Tables)
+
+### 1. `users`
+Registered user information.
+- `id`, `email`, `name`, `role`, `plan_id`, `created_at`
+
+---
+
+### 2. `plans`
+Service plan definitions.
+- `id`, `name`, `price`, `max_projects`, `max_deployments_per_day`
+
+---
+
+### 3. `billing_subscriptions`
+Paid subscription status.
+- `user_id`, `provider`, `subscription_id`, `status`, `started_at`, `renew_at`
+
+---
+
+### 4. `teams`
+Teams for collaboration.
+- `id`, `name`, `owner_id`, `created_at`
+
+---
+
+### 5. `team_members`
+Assign users to teams with roles.
+- `team_id`, `user_id`, `role`, `joined_at`
+
+---
+
+### 6. `projects`
+User/team software projects.
+- `team_id`, `name`, `repo_url`, `source_type`, `status`
+
+---
+
+### 7. `project_templates`
+Templates for creating sample projects.
+- `name`, `description`, `language`, `is_official`
+
+---
+
+### 8. `project_configs`
+Environment configurations for generating deployment files.
+- `project_id`, `language`, `framework`, `port`, `env_vars`, `ci_tool`, `deploy_target`
+
+---
+
+### 9. `project_files`
+Stored files like Dockerfile, deployment.yaml, etc.
+- `project_id`, `path`, `content`, `is_generated`
+
+---
+
+### 10. `ci_pipelines`
+CI/CD pipeline status for projects.
+- `project_id`, `provider`, `status`, `commit_sha`, `log_url`
+
+---
+
+### 11. `pipeline_steps`
+Detailed steps in each pipeline.
+- `pipeline_id`, `name`, `status`, `log`
+
+---
+
+### 12. `deployments`
+Track application deployments.
+- `project_id`, `platform`, `status`, `log`, `triggered_by`
+
+---
+
+### 13. `deployment_targets`
+Define deployment targets (Kubernetes, Docker hosts).
+- `team_id`, `name`, `type`, `host`, `auth`
+
+---
+
+### 14. `github_integrations`
+Store GitHub OAuth tokens for repo imports and CI.
+- `user_id`, `github_user_id`, `access_token`
+
+---
+
+### 15. `activity_logs`
+Record actions like project creation, deployments, etc.
+- `user_id`, `project_id`, `action`, `metadata`
+
+---
+
+### 16. `api_keys`
+API tokens for user automation.
+- `user_id`, `name`, `token_hash`, `scopes`
+
+---
+
+### 17. `notifications`
+CI/CD status, billing, deployment notifications.
+- `user_id`, `type`, `message`, `is_read`
+
+---
+
+### 18. `webhooks`
+User-registered webhooks for events.
+- `project_id`, `url`, `event_type`, `secret`
+
+---
+
+### 19. `secrets`
+Environment variables and sensitive project tokens.
+- `project_id`, `key`, `value_encrypted`, `scope`
+
+---
+
+### 20. `usage_metrics`
+Track build/deploy counts for plan usage calculations.
+- `user_id`, `project_id`, `metric_type`, `count`, `period_start`, `period_end`
+
+---
+
+## 🧠 Extensions
+
+- Additional support: Google OAuth, GitLab, Bitbucket.
+- Additional tables: `audit_logs`, `cluster_metrics`, `custom_plugins`.
+- Public API gateway with `api_keys` table.
+
+---
+
+## 📌 Contact
+
+Contact [yourteam@yourdomain.com] for feedback or architecture expansion requests.
 
 # Docker Remote API Setup Guide
 

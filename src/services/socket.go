@@ -85,11 +85,11 @@ func sendJSONMessage(conn *websocket.Conn, messageType int, response WebSocketMe
 	return conn.WriteMessage(messageType, data)
 }
 
-// SendMessageToUser sends a message to a specific user via their WebSocket connection
+// SendMessageToUser sends a message to a specific users via their WebSocket connection
 func SendMessageToUser(userID uint, message WebSocketMessage) error {
 	conn, exists := store.GetUserSocket(userID)
 	if !exists {
-		return fmt.Errorf("user %d not connected", userID)
+		return fmt.Errorf("users %d not connected", userID)
 	}
 
 	data, err := json.Marshal(message)
