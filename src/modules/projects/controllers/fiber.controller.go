@@ -1,12 +1,12 @@
 package projects
 
 import (
-	projects "dockerwizard-api/src/modules/projects/services"
-	"dockerwizard-api/src/utils"
-	"dockerwizard-api/store"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"path/filepath"
+	projects "skypipe/src/modules/projects/services"
+	"skypipe/src/utils"
+	"skypipe/store"
 	"time"
 )
 

@@ -1,11 +1,11 @@
 package services
 
 import (
-	"dockerwizard-api/src/utils"
-	"dockerwizard-api/store"
 	"encoding/json"
 	"fmt"
 	"log"
+	"skypipe/src/utils"
+	"skypipe/store"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"

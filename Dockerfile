@@ -2,7 +2,7 @@ FROM golang:1.24.2-alpine
 
 # Cài dependencies (thêm coreutils và tini để đảm bảo terminal tương tác)
 RUN apk update && apk add --no-cache \
-    mariadb-client \
+    postgresql-client \
     inotify-tools \
     curl \
     make \

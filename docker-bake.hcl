@@ -1,9 +1,9 @@
 # Define variables with direct values (fallbacks)
-APP_NAME = "dockerwizard-api"
+APP_NAME = "skypipe-api"
 FRAMEWORK = "fiber"
 VERSION = "1.0.0"
-DB_PASS = "dockerwizard-admin"
-DB_NAME = "dockerwizard"
+DB_PASS = "skypipe-admin"
+DB_NAME = "skypipe"
 DB_USER = "admin"
 
 group "default" {
@@ -23,13 +23,12 @@ target "app" {
 
 target "db" {
   context = "."
-  dockerfile = "Dockerfile.mysql"
-  tags = ["${APP_NAME}-mysql:${VERSION}"]
+  dockerfile = "Dockerfile.postgres"
+  tags = ["${APP_NAME}-postgres:${VERSION}"]
   platforms = ["linux/amd64"]
   args = {
-    MYSQL_ROOT_PASSWORD = DB_PASS
-    MYSQL_DATABASE = DB_NAME
-    MYSQL_USER = DB_USER
-    MYSQL_PASSWORD = DB_PASS
+    POSTGRES_DB: DB_NAME
+    POSTGRES_USER: DB_USER
+    POSTGRES_PASSWORD: DB_PASS
   }
 }

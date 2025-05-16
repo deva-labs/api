@@ -1,0 +1,182 @@
+package verifications
+
+import (
+	"fmt"
+	"math/rand"
+	"net/http"
+	"net/smtp"
+	"os"
+	"skypipe/src/config"
+	key_token_model "skypipe/src/modules/key_token/models"
+	key_token "skypipe/src/modules/key_token/services"
+	users "skypipe/src/modules/users/models"
+	verifications "skypipe/src/modules/verifications/models"
+	"time"
+)
+
+// Helper function to generate a 6-digit verifications code
+func GenerateVerificationCode() string {
+	return fmt.Sprintf("%06d", rand.Intn(1000000))
+}
+
+// Helper function to save the verifications code
+func SaveVerificationCode(email, code string) error {
+	db := config.DB
+	var user users.User
+	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
+		return err
+	}
+	// Delete all verifications code before sent a new one
+	if err := db.Where("email = ?", email).Delete(&verifications.VerificationCode{}).Error; err != nil {
+		return fmt.Errorf("failed to delete verifications code: %v", err)
+	}
+
+	verification := verifications.VerificationCode{
+		Email:     email,
+		Code:      code,
+		ExpiresAt: time.Now().Add(3 * time.Minute),
+	}
+	return db.Create(&verification).Error
+}
+
+// sendVerificationEmail sends a verifications email with the given code
+func SendVerificationEmail(email, code string) error {
+	// Email server configuration
+	smtpHost := os.Getenv("SMTP_HOST")     // E.g., "smtp.gmail.com"
+	smtpPort := os.Getenv("SMTP_PORT")     // E.g., "587"
+	smtpUsername := os.Getenv("SMTP_USER") // Your email address
+	smtpPassword := os.Getenv("SMTP_PASS") // Your email password or app-specific password
+
+	// Email content
+	subject := "Your Verification Code"
+	body := fmt.Sprintf("Your verifications code is: %s", code)
+	message := fmt.Sprintf("Subject: %s\n\n%s", subject, body)
+
+	// Set up authentication information
+	auth := smtp.PlainAuth("", smtpUsername, smtpPassword, smtpHost)
+
+	// Send the email
+	err := smtp.SendMail(
+		fmt.Sprintf("%s:%s", smtpHost, smtpPort),
+		auth,
+		smtpUsername,
+		[]string{email},
+		[]byte(message),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to send verifications email: %w", err)
+	}
+
+	return nil
+}
+
+// VerifyCodeAndGenerateTokens Function to verify the code and generate tokens
+func VerifyCodeAndGenerateTokens(code verifications.VerificationCode) (map[string]interface{}, int, error) {
+	db := config.DB
+	// Step 1: Retrieve the user associated with the email
+	var user users.User
+	if err := db.Where("email = ?", code.Email).First(&user).Error; err != nil {
+		return nil, http.StatusNotFound, fmt.Errorf("invalid user")
+	}
+
+	// Step 2: Retrieve the verifications record
+	var verification verifications.VerificationCode
+	if err := db.Where("email = ?", code.Email).First(&verification).Error; err != nil {
+		return nil, http.StatusNotFound, fmt.Errorf("verifications record not found")
+	}
+
+	// Step 3: Check if the code is expired
+	if verification.ExpiresAt.Before(time.Now()) {
+		db.Delete(&verification) // Ensure to delete expired verifications code
+		return nil, http.StatusUnauthorized, fmt.Errorf("verifications code has expired")
+	}
+
+	// Step 4: Check valid code
+	if verification.Code != code.Code {
+		verification.InputCount += 1
+		db.Save(&verification)
+
+		// Step 5: Lock user after 5 failed attempts
+		if verification.InputCount >= 5 {
+			db.Delete(&verification)
+			user.Status = false
+			db.Save(&user)
+			return nil, http.StatusUnauthorized, fmt.Errorf("too many time argument, your account had been suspended, please get contact to admin")
+		}
+		return nil, http.StatusUnauthorized, fmt.Errorf("invalid verifications code")
+	}
+
+	// Step 6: Delete all existing tokens for the user
+	if err := key_token.DeleteAllTokensByUserID(user.ID); err != nil {
+		return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete existing tokens")
+	}
+
+	// Step 7: Generate new tokens
+	accessToken, refreshToken, err := key_token.GenerateHexTokens(user.ID)
+	if err != nil {
+		return nil, http.StatusInternalServerError, fmt.Errorf("failed to generate tokens")
+	}
+
+	// Step 8: Return the tokens with success status
+	return map[string]interface{}{
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+	}, http.StatusOK, nil
+}
+
+func VerifyCode(code, email string) (map[string]interface{}, error) {
+	// Import db queries
+	db := config.DB
+	var user users.User
+	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
+		return nil, err
+	}
+	var verification verifications.VerificationCode
+	if err := db.Where("email = ? AND code = ?", email, code).First(&verification).Error; err != nil {
+		return nil, err
+	}
+	// Step 3: Check if the code is expired
+	if verification.ExpiresAt.Before(time.Now()) {
+		db.Delete(&verification) // Ensure to delete expired verifications code
+		return nil, fmt.Errorf("verifications code has expired")
+	}
+	// Step 4: Check valid code
+	if verification.Code != code {
+		verification.InputCount += 1
+		db.Save(&verification)
+
+		// Step 5: Lock user after 5 failed attempts
+		if verification.InputCount >= 5 {
+			db.Delete(&verification)
+			user.Status = false
+			db.Save(&user)
+			return nil, fmt.Errorf("too many time argument, your account had been suspended, please get contact to admin")
+		}
+		return nil, fmt.Errorf("invalid verifications code")
+	}
+	// Step 6: Delete all existing tokens for the user
+	if err := key_token.DeleteAllTokensByUserID(user.ID); err != nil {
+		return nil, fmt.Errorf("failed to delete existing tokens")
+	}
+
+	// Step 7: Get New Token
+	token, err := key_token.GenerateAccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token")
+	}
+	// Step 8: Save token to user
+	accessTokenEntry := key_token_model.AccessToken{
+		UserID: user.ID,
+		Token:  token,
+	}
+	if err := db.Create(&accessTokenEntry).Error; err != nil {
+		return nil, fmt.Errorf("failed to save access token")
+	}
+
+	// Step 9: Return the token and user ID
+	response := map[string]interface{}{
+		"token":   accessTokenEntry.Token,
+		"user_id": accessTokenEntry.UserID,
+	}
+	return response, nil
+}

@@ -1,14 +1,14 @@
 package projects
 
 import (
-	"dockerwizard-api/src/functions"
-	"dockerwizard-api/src/utils"
 	"fmt"
 	"github.com/gofiber/websocket/v2"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"skypipe/src/functions"
+	"skypipe/src/utils"
 	"strings"
 	"time"
 )

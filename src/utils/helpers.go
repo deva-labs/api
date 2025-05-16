@@ -1,15 +1,16 @@
 package utils
 
 import (
-	"dockerwizard-api/src/lib/interfaces"
 	"fmt"
 	"github.com/creack/pty"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
+	"golang.org/x/crypto/bcrypt"
 	"math"
 	"net/http"
 	"os"
 	"os/exec"
+	"skypipe/src/lib/interfaces"
 	"strconv"
 	"strings"
 	"time"
@@ -192,4 +193,19 @@ func transformAction(action string) string {
 		return strings.TrimSuffix(action, "ing") + "ed"
 	}
 	return action
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	return string(bytes), err
+}
+
+func CheckPasswordHash(pw, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw))
+	return err == nil
+}
+
+// Stub example – replace with real API call to hCaptcha or Google reCAPTCHA
+func VerifyCaptcha(token string) bool {
+	return token == "pass" // or call external verifications
 }

@@ -1,10 +1,10 @@
 package functions
 
 import (
-	"dockerwizard-api/src/lib/interfaces"
-	"dockerwizard-api/src/utils"
 	"fmt"
 	"github.com/gofiber/websocket/v2"
+	"skypipe/src/lib/interfaces"
+	"skypipe/src/utils"
 	"strings"
 
 	"time"

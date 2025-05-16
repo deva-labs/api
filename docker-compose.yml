@@ -1,17 +1,16 @@
 services:
   db:
-    image: ${APP_NAME}-mysql:${VERSION}
-    container_name: ${APP_NAME}-mysql
+    image: ${APP_NAME}-postgres:${VERSION}
+    container_name: ${APP_NAME}-postgres
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASS}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
     ports:
-      - "${DB_PORT}:3306"
+      - "5433:5432"
     volumes:
-      - db_data:/var/lib/mysql
+      - db_data:/var/lib/postgresql/data
     networks:
       - backend
 
@@ -27,7 +26,7 @@ services:
       - ./:/app
     environment:
       - DB_HOST=db
-      - DB_PORT=3306
+      - DB_PORT=${DB_PORT}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASS}
@@ -38,20 +37,22 @@ services:
 
 volumes:
   db_data:
+    name: ${APP_NAME}-postgres-data
 
 networks:
   backend:
     name: ${APP_NAME}-network
+    driver: bridge
 
 # Bake (Buildx) integration
 x-bake:
   db:
-    dockerfile: Dockerfile.mysql
+    dockerfile: Dockerfile.postgres
     tags:
-      - ${APP_NAME}-mysql:${VERSION}
+      - ${APP_NAME}-postgres:${VERSION}
     platforms: ["linux/amd64"]
-    cache-from: type=registry,ref=${APP_NAME}-mysql:cache
-    cache-to: type=registry,ref=${APP_NAME}-mysql:cache,mode=max
+    cache-from: type=registry,ref=${APP_NAME}-postgres:cache
+    cache-to: type=registry,ref=${APP_NAME}-postgres:cache,mode=max
 
   app:
     dockerfile: Dockerfile

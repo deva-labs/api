@@ -20,8 +20,8 @@ echo "Removing custom networks..."
 docker network prune -f
 
 # Remove all Docker volumes
-echo "Removing unused volumes..."
-docker volume prune -f
+echo "Force removing all volumes (including attached)..."
+docker volume rm $(docker volume ls -q) 2>/dev/null || echo "No volumes to remove"
 
 # Remove all Docker build cache
 echo "Removing build cache..."

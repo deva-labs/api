@@ -1,13 +1,14 @@
 package main
 
 import (
-	"dockerwizard-api/src/routes"
-	"dockerwizard-api/src/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
 	"github.com/joho/godotenv"
 	"log"
+	"skypipe/src/config"
+	"skypipe/src/routes"
+	"skypipe/src/services"
 	"time"
 )
 
@@ -50,6 +51,8 @@ func main() {
 	// WebSocket handler
 	app.Get("/ws", services.WebSocketUpgrader())
 
+	// Connect to db
+	config.ConnectDatabase()
 	// Register other routes
 	routes.RegisterRoutes(app)
 	err := app.Listen(":2350")
