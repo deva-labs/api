@@ -2,120 +2,139 @@ package users
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"net/http"
 	"skypipe/src/lib/dto"
+	"skypipe/src/lib/interfaces"
 	users "skypipe/src/modules/users/models"
 	service "skypipe/src/modules/users/services"
 	"skypipe/src/utils"
-	"strconv"
 )
 
 func GetUser(c *fiber.Ctx) error {
 	userInterface := c.Locals("user")
 	if userInterface == nil {
-		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    http.StatusUnauthorized,
-				"message": "Unauthorized",
+		return c.Status(http.StatusUnauthorized).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    http.StatusUnauthorized,
+				Message: "Unauthorized",
 			},
+			Error: nil,
 		})
 	}
 
 	currentUser, ok := userInterface.(*users.User)
 	if !ok {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    http.StatusInternalServerError,
-				"message": "Failed to parse user from context",
+		return c.Status(http.StatusInternalServerError).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    http.StatusInternalServerError,
+				Message: "Failed to parse user from context",
 			},
+			Error: nil,
 		})
 	}
 
-	userInfo, err := service.GetUserInfo(currentUser.ID)
-	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    http.StatusInternalServerError,
-				"message": "Failed to get user info",
+	userInfo, serviceErr := service.GetUserInfo(currentUser.ID)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
-			"error": err.Error(),
+			Error: errStr,
 		})
 	}
 
-	return c.Status(http.StatusOK).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    http.StatusOK,
-			"message": "Retrieved the profile of user successfully",
+	return c.Status(http.StatusOK).JSON(interfaces.Response{
+		Data: userInfo,
+		Status: interfaces.Status{
+			Code:    http.StatusOK,
+			Message: "Retrieved the profile of user successfully",
 		},
-		"data": userInfo,
+		Error: nil,
 	})
 }
 
 func Register(c *fiber.Ctx) error {
 	var body dto.RegisterRequest
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusBadRequest,
-				"message": "Invalid input",
+	serviceErr := utils.BindJson(c, &body)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
-		})
-	}
-	if !utils.VerifyCaptcha(body.Captcha) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusForbidden,
-				"message": "Captcha verifications failed",
-			},
+			Error: errStr,
 		})
 	}
 
 	response, serviceError := service.RegisterService(body)
 	if serviceError != nil {
-		return c.Status(serviceError.StatusCode).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    serviceError.StatusCode,
-				"message": serviceError.Message,
+		s := serviceError.Err.Error()
+		errStr := &s
+		return c.Status(serviceError.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceError.StatusCode,
+				Message: serviceError.Message,
 			},
-			"error": serviceError.Error,
+			Error: errStr,
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    fiber.StatusCreated,
-			"message": "User created successfully",
+	return c.Status(fiber.StatusCreated).JSON(interfaces.Response{
+		Data: response,
+		Status: interfaces.Status{
+			Code:    http.StatusCreated,
+			Message: "Registration successfully, redirecting to login...",
 		},
-		"data": response,
+		Error: nil,
 	})
 }
 
 func Login(c *fiber.Ctx) error {
 	var body dto.LoginRequest
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusBadRequest,
-				"message": "Invalid input",
+	serviceErr := utils.BindJson(c, &body)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
+			Error: errStr,
 		})
 	}
 	response, serviceError := service.LoginService(body)
 	if serviceError != nil {
-		return c.Status(serviceError.StatusCode).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    serviceError.StatusCode,
-				"message": serviceError.Message,
+		s := serviceError.Err.Error()
+		errStr := &s
+		return c.Status(serviceError.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceError.StatusCode,
+				Message: serviceError.Message,
 			},
-			"error": serviceError.Error,
+			Error: errStr,
 		})
 	}
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    fiber.StatusOK,
-			"message": "We just send an email verification code to you",
+	return c.Status(fiber.StatusOK).JSON(interfaces.Response{
+		Data: response,
+		Status: interfaces.Status{
+			Code:    http.StatusOK,
+			Message: "We just send to you an email verification code. Redirecting...",
 		},
-		"data": response,
+		Error: nil,
 	})
 }
 
@@ -123,100 +142,127 @@ func ForgotPassword(c *fiber.Ctx) error {
 	var request struct {
 		Email string `json:"email"`
 	}
-	if err := c.BodyParser(&request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusBadRequest,
-				"message": "Invalid input",
+	serviceErr := utils.BindJson(c, &request)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
-			"error": err.Error(),
+			Error: errStr,
 		})
 	}
 
-	status, err := service.ForgotPassword(request.Email)
-	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    status,
-				"message": "Forbidden",
+	serviceErr = service.ForgotPassword(request.Email)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
-			"error": err.Error(),
+			Error: errStr,
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    fiber.StatusOK,
-			"message": "Verification email has been sent",
+	return c.Status(fiber.StatusOK).JSON(interfaces.Response{
+		Data: nil,
+		Status: interfaces.Status{
+			Code:    fiber.StatusOK,
+			Message: "Verification email has been sent",
 		},
+		Error: nil,
 	})
 }
 
 func RenewPassword(c *fiber.Ctx) error {
-	var request struct {
-		OldPassword string `json:"old_password"`
-		NewPassword string `json:"new_password"`
-		UserID      uint   `json:"user_id"`
-	}
+	var request dto.RenewPasswordRequest
 
-	if err := c.BodyParser(&request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusBadRequest,
-				"message": "Invalid input",
+	serviceErr := utils.BindJson(c, &request)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
+			Error: errStr,
 		})
 	}
 
-	status, err := service.RenewPassword(request.NewPassword, strconv.Itoa(int(request.UserID)))
-	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    status,
-				"message": "Failed to change password",
+	serviceError := service.RenewPassword(request)
+	if serviceError != nil {
+		s := serviceError.Err.Error()
+		errStr := &s
+		return c.Status(serviceError.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceError.StatusCode,
+				Message: serviceError.Message,
 			},
+			Error: errStr,
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    fiber.StatusOK,
-			"message": "Successfully changed password",
+	return c.Status(fiber.StatusOK).JSON(interfaces.Response{
+		Data: nil,
+		Status: interfaces.Status{
+			Code:    fiber.StatusOK,
+			Message: "Password has been renewed",
 		},
+		Error: nil,
 	})
 }
 
 func ChangePassword(c *fiber.Ctx) error {
 	var request struct {
-		OldPassword string `json:"old_password"`
-		NewPassword string `json:"new_password"`
-		UserID      uint   `json:"user_id"`
+		OldPassword string    `json:"old_password"`
+		NewPassword string    `json:"new_password"`
+		UserID      uuid.UUID `json:"user_id"`
 	}
 
-	if err := c.BodyParser(&request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusBadRequest,
-				"message": "Invalid input",
+	serviceErr := utils.BindJson(c, &request)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
+			Error: errStr,
 		})
 	}
 
-	status, err := service.ChangePassword(request.OldPassword, request.NewPassword, strconv.Itoa(int(request.UserID)))
-	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    status,
-				"message": "Failed to change password",
+	serviceErr = service.ChangePassword(request.OldPassword, request.NewPassword, request.UserID)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
+			Error: errStr,
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    fiber.StatusOK,
-			"message": "Successfully changed password",
+	return c.Status(fiber.StatusOK).JSON(interfaces.Response{
+		Data: nil,
+		Status: interfaces.Status{
+			Code:    fiber.StatusOK,
+			Message: "Password has been renewed",
 		},
+		Error: nil,
 	})
 }
 
@@ -225,31 +271,40 @@ func GetUserAvatar(c *fiber.Ctx) error {
 		UserID uint `json:"user_id"`
 	}
 
-	if err := c.BodyParser(&request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusBadRequest,
-				"message": "Invalid input",
+	serviceErr := utils.BindJson(c, &request)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
-			"error": err.Error(),
+			Error: errStr,
 		})
 	}
 
-	avatarUser, err := service.GetUserImageByID(request.UserID)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusInternalServerError,
-				"message": err.Message,
+	avatarUser, serviceError := service.GetUserImageByID(request.UserID)
+	if serviceError != nil {
+		s := serviceError.Err.Error()
+		errStr := &s
+		return c.Status(serviceError.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceError.StatusCode,
+				Message: serviceError.Message,
 			},
+			Error: errStr,
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    fiber.StatusOK,
-			"message": "Successfully retrieved user avatar",
+	return c.Status(fiber.StatusOK).JSON(interfaces.Response{
+		Data: avatarUser,
+		Status: interfaces.Status{
+			Code:    fiber.StatusOK,
+			Message: "Successfully retrieved user avatar",
 		},
-		"data": avatarUser,
+		Error: nil,
 	})
 }

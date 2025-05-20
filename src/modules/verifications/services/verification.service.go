@@ -2,24 +2,26 @@ package verifications
 
 import (
 	"fmt"
+	"gorm.io/gorm"
 	"math/rand"
 	"net/http"
 	"net/smtp"
 	"os"
 	"skypipe/src/config"
-	key_token_model "skypipe/src/modules/key_token/models"
+	"skypipe/src/lib/dto"
 	key_token "skypipe/src/modules/key_token/services"
 	users "skypipe/src/modules/users/models"
 	verifications "skypipe/src/modules/verifications/models"
+	"skypipe/src/utils"
 	"time"
 )
 
-// Helper function to generate a 6-digit verifications code
+// GenerateVerificationCode Helper function to generate a 6-digit verifications code
 func GenerateVerificationCode() string {
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
 }
 
-// Helper function to save the verifications code
+// SaveVerificationCode Helper function to save the verifications code
 func SaveVerificationCode(email, code string) error {
 	db := config.DB
 	var user users.User
@@ -39,7 +41,7 @@ func SaveVerificationCode(email, code string) error {
 	return db.Create(&verification).Error
 }
 
-// sendVerificationEmail sends a verifications email with the given code
+// SendVerificationEmail sends a verifications email with the given code
 func SendVerificationEmail(email, code string) error {
 	// Email server configuration
 	smtpHost := os.Getenv("SMTP_HOST")     // E.g., "smtp.gmail.com"
@@ -49,8 +51,8 @@ func SendVerificationEmail(email, code string) error {
 
 	// Email content
 	subject := "Your Verification Code"
-	body := fmt.Sprintf("Your verifications code is: %s", code)
-	message := fmt.Sprintf("Subject: %s\n\n%s", subject, body)
+	message := []byte(fmt.Sprintf("To: %s\r\nSubject: %s\r\nMIME-version: 1.0;\r\nContent-Type: text/html; charset=\"UTF-8\";\r\n\r\n%s",
+		email, subject, fmt.Sprintf("<h2>Your verification code is: %s</h2>", code)))
 
 	// Set up authentication information
 	auth := smtp.PlainAuth("", smtpUsername, smtpPassword, smtpHost)
@@ -61,7 +63,7 @@ func SendVerificationEmail(email, code string) error {
 		auth,
 		smtpUsername,
 		[]string{email},
-		[]byte(message),
+		message,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to send verifications email: %w", err)
@@ -71,112 +73,196 @@ func SendVerificationEmail(email, code string) error {
 }
 
 // VerifyCodeAndGenerateTokens Function to verify the code and generate tokens
-func VerifyCodeAndGenerateTokens(code verifications.VerificationCode) (map[string]interface{}, int, error) {
+func VerifyCodeAndGenerateTokens(code dto.VerificationCodeRequest) (map[string]interface{}, *utils.ServiceError) {
 	db := config.DB
-	// Step 1: Retrieve the user associated with the email
+	maxOtpAttempts := utils.ConvertStringToInt(os.Getenv("MAX_OTP_ATTEMPTS"))
+
+	// Step 1: Retrieve the user
 	var user users.User
-	if err := db.Where("email = ?", code.Email).First(&user).Error; err != nil {
-		return nil, http.StatusNotFound, fmt.Errorf("invalid user")
+	if err := db.Where("id = ?", code.UserID).First(&user).Error; err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "User not found",
+			Err:        err,
+		}
 	}
 
-	// Step 2: Retrieve the verifications record
+	// Step 2: Retrieve verification code
 	var verification verifications.VerificationCode
 	if err := db.Where("email = ?", code.Email).First(&verification).Error; err != nil {
-		return nil, http.StatusNotFound, fmt.Errorf("verifications record not found")
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Verification record not found",
+			Err:        err,
+		}
 	}
 
-	// Step 3: Check if the code is expired
+	// Step 3: Check if expired
 	if verification.ExpiresAt.Before(time.Now()) {
-		db.Delete(&verification) // Ensure to delete expired verifications code
-		return nil, http.StatusUnauthorized, fmt.Errorf("verifications code has expired")
+		db.Delete(&verification)
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Verification code expired",
+			Err:        nil,
+		}
 	}
 
-	// Step 4: Check valid code
+	// Step 4: Validate code
 	if verification.Code != code.Code {
-		verification.InputCount += 1
+		verification.InputCount++
 		db.Save(&verification)
 
-		// Step 5: Lock user after 5 failed attempts
-		if verification.InputCount >= 5 {
+		if verification.InputCount >= maxOtpAttempts {
 			db.Delete(&verification)
 			user.Status = false
 			db.Save(&user)
-			return nil, http.StatusUnauthorized, fmt.Errorf("too many time argument, your account had been suspended, please get contact to admin")
+
+			return nil, &utils.ServiceError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "Too many failed attempts; your account has been suspended. Please contact support",
+				Err:        nil,
+			}
 		}
-		return nil, http.StatusUnauthorized, fmt.Errorf("invalid verifications code")
+
+		remaining := maxOtpAttempts - verification.InputCount
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid code. You have %d attempt(s) remaining", remaining),
+			Err:        nil,
+		}
 	}
 
-	// Step 6: Delete all existing tokens for the user
+	// Step 5: Cleanup verification record
+	db.Delete(&verification)
+
+	// Step 6: Invalidate existing tokens
 	if err := key_token.DeleteAllTokensByUserID(user.ID); err != nil {
-		return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete existing tokens")
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "could not invalidate existing sessions",
+			Err:        err,
+		}
 	}
 
-	// Step 7: Generate new tokens
+	// Step 7: Generate new access/refresh tokens
 	accessToken, refreshToken, err := key_token.GenerateHexTokens(user.ID)
 	if err != nil {
-		return nil, http.StatusInternalServerError, fmt.Errorf("failed to generate tokens")
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "could not generate verification code",
+		}
 	}
 
-	// Step 8: Return the tokens with success status
+	// Step 8: Return token response
 	return map[string]interface{}{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
-	}, http.StatusOK, nil
+	}, nil
 }
 
-func VerifyCode(code, email string) (map[string]interface{}, error) {
-	// Import db queries
+func VerifyCodeAndSetPasswordToken(code, email string) (map[string]interface{}, *utils.ServiceError) {
 	db := config.DB
+	rdb := config.RDB
+	ctx := config.Ctx
+	maxOtpAttempts := utils.ConvertStringToInt(os.Getenv("MAX_OTP_ATTEMPTS"))
 	var user users.User
 	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
-		return nil, err
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("User not found"),
+			Err:        err,
+		}
 	}
+
 	var verification verifications.VerificationCode
 	if err := db.Where("email = ? AND code = ?", email, code).First(&verification).Error; err != nil {
-		return nil, err
-	}
-	// Step 3: Check if the code is expired
-	if verification.ExpiresAt.Before(time.Now()) {
-		db.Delete(&verification) // Ensure to delete expired verifications code
-		return nil, fmt.Errorf("verifications code has expired")
-	}
-	// Step 4: Check valid code
-	if verification.Code != code {
-		verification.InputCount += 1
-		db.Save(&verification)
-
-		// Step 5: Lock user after 5 failed attempts
-		if verification.InputCount >= 5 {
-			db.Delete(&verification)
-			user.Status = false
-			db.Save(&user)
-			return nil, fmt.Errorf("too many time argument, your account had been suspended, please get contact to admin")
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("Invalid verification code"),
+			Err:        err,
 		}
-		return nil, fmt.Errorf("invalid verifications code")
 	}
-	// Step 6: Delete all existing tokens for the user
+
+	// Check expired
+	if verification.ExpiresAt.Before(time.Now()) {
+		db.Delete(&verification)
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusUnauthorized,
+			Message:    fmt.Sprintf("Invalid verification code"),
+			Err:        nil,
+		}
+	}
+
+	// Check code match
+	if verification.Code != code {
+		// Use transaction to avoid race condition
+		err := db.Transaction(func(tx *gorm.DB) error {
+			verification.InputCount += 1
+			if err := tx.Save(&verification).Error; err != nil {
+				return err
+			}
+
+			if verification.InputCount >= maxOtpAttempts {
+				if err := tx.Delete(&verification).Error; err != nil {
+					return err
+				}
+				user.Status = false
+				if err := tx.Save(&user).Error; err != nil {
+					return err
+				}
+				return fmt.Errorf("too many attempts; account suspended")
+			}
+			return fmt.Errorf("invalid verification code")
+		})
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusUnauthorized,
+			Message:    fmt.Sprintf("Invalid verification code"),
+			Err:        err,
+		}
+	}
+
+	// Delete old tokens
 	if err := key_token.DeleteAllTokensByUserID(user.ID); err != nil {
-		return nil, fmt.Errorf("failed to delete existing tokens")
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("could not invalidate existing sessions"),
+			Err:        err,
+		}
 	}
 
-	// Step 7: Get New Token
-	token, err := key_token.GenerateAccessToken()
+	// Generate new token
+	token, err := key_token.GenerateSecureToken(32)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate access token")
-	}
-	// Step 8: Save token to user
-	accessTokenEntry := key_token_model.AccessToken{
-		UserID: user.ID,
-		Token:  token,
-	}
-	if err := db.Create(&accessTokenEntry).Error; err != nil {
-		return nil, fmt.Errorf("failed to save access token")
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("could not generate authentication tokens"),
+			Err:        err,
+		}
 	}
 
-	// Step 9: Return the token and user ID
-	response := map[string]interface{}{
-		"token":   accessTokenEntry.Token,
-		"user_id": accessTokenEntry.UserID,
+	// Hash token before storing to Redis
+	tokenKey := utils.HashToken(token)
+
+	// TTL from env (default 5m)
+	ttl := time.Minute * 5
+	if ttlEnv := os.Getenv("RESET_TOKEN_TTL"); ttlEnv != "" {
+		if parsed, err := time.ParseDuration(ttlEnv); err == nil {
+			ttl = parsed
+		}
 	}
-	return response, nil
+
+	// Store token in Redis
+	err = rdb.Set(ctx, user.ID.String(), tokenKey, ttl).Err()
+	if err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("could not save token"),
+			Err:        err,
+		}
+	}
+
+	return map[string]interface{}{
+		"token":   token,
+		"user_id": user.ID,
+	}, nil
 }

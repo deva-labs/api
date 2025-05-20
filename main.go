@@ -53,6 +53,8 @@ func main() {
 
 	// Connect to db
 	config.ConnectDatabase()
+	// Connect to redis
+	config.ConnectRedis()
 	// Register other routes
 	routes.RegisterRoutes(app)
 	err := app.Listen(":2350")

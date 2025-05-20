@@ -7,16 +7,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"net/http"
+	"os"
 	"skypipe/src/config"
 	"skypipe/src/lib/dto"
+	key_token "skypipe/src/modules/key_token/services"
 	plans "skypipe/src/modules/plans/models"
 	roles "skypipe/src/modules/roles/models"
 	users "skypipe/src/modules/users/models"
 	verificationService "skypipe/src/modules/verifications/services"
+	"skypipe/src/services"
 	"skypipe/src/utils"
+	"time"
 )
 
-func GetUserInfo(userID uuid.UUID) (*users.User, error) {
+func GetUserInfo(userID uuid.UUID) (*users.User, *utils.ServiceError) {
 	db := config.DB
 
 	var user users.User
@@ -24,9 +28,17 @@ func GetUserInfo(userID uuid.UUID) (*users.User, error) {
 	// Preload profile based on defined relationship
 	if err := db.Preload("Profile").First(&user, "id = ?", userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("user not found")
+			return nil, &utils.ServiceError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "User not found",
+				Err:        err,
+			}
 		}
-		return nil, err
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "DB error",
+			Err:        err,
+		}
 	}
 
 	return &user, nil
@@ -46,7 +58,7 @@ func RegisterService(body dto.RegisterRequest) (map[string]interface{}, *utils.S
 	}
 
 	// Hash password
-	hashed, err := utils.HashPassword(body.Password)
+	hashed, err := services.HashPassword(body.Password)
 	if err != nil {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusInternalServerError,
@@ -120,15 +132,16 @@ func RegisterService(body dto.RegisterRequest) (map[string]interface{}, *utils.S
 	}
 
 	return map[string]interface{}{
-		"message": "User registered successfully",
 		"user_id": user.ID,
 	}, nil
 }
 
 func LoginService(body dto.LoginRequest) (map[string]interface{}, *utils.ServiceError) {
 	db := config.DB
-	// Optionally use rate limiting middleware before this handler
+	rdb := config.RDB
+	ctx := config.Ctx
 
+	// Step 1: Find user
 	var user users.User
 	if err := db.Where("email = ?", body.Email).First(&user).Error; err != nil {
 		return nil, &utils.ServiceError{
@@ -138,6 +151,7 @@ func LoginService(body dto.LoginRequest) (map[string]interface{}, *utils.Service
 		}
 	}
 
+	// Step 2: Check password
 	if !utils.CheckPasswordHash(body.Password, user.Password) {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusUnauthorized,
@@ -145,91 +159,168 @@ func LoginService(body dto.LoginRequest) (map[string]interface{}, *utils.Service
 		}
 	}
 
-	// Send verifications code
-	verificationCode := verificationService.GenerateVerificationCode()
+	// Step 3: Clean up old records (accessToken, refreshToken, verificationCode)
+	if err := utils.CleanUserOldTokens(db, user.Email, user.ID); err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to clear user session",
+			Err:        err,
+		}
+	}
 
-	// Save new verifications code to db
+	// Step 4: Generate and save verification code
+	verificationCode := verificationService.GenerateVerificationCode()
 	if err := verificationService.SaveVerificationCode(user.Email, verificationCode); err != nil {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusInternalServerError,
-			Message:    "Failed to save verifications code",
+			Message:    "Failed to save verification code",
 			Err:        err,
 		}
 	}
+
+	// Step 5: Generate and store secure token (Redis)
+	token, err := key_token.GenerateSecureToken(32)
+	if err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to generate token",
+			Err:        err,
+		}
+	}
+	tokenKey := utils.HashToken(token)
+
+	ttl := time.Minute * 5
+	if ttlEnv := os.Getenv("RESET_TOKEN_TTL"); ttlEnv != "" {
+		if parsed, err := time.ParseDuration(ttlEnv); err == nil {
+			ttl = parsed
+		}
+	}
+
+	if err := rdb.Set(ctx, user.ID.String(), tokenKey, ttl).Err(); err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Could not store token",
+			Err:        err,
+		}
+	}
+
+	// Step 6: Send email
 	if err := verificationService.SendVerificationEmail(user.Email, verificationCode); err != nil {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusInternalServerError,
-			Message:    "Failed to send verifications code",
+			Message:    "Failed to send verification email",
 			Err:        err,
 		}
 	}
+
+	// Return login metadata
 	return map[string]interface{}{
-		"email": user.Email,
+		"token":   token,
+		"user_id": user.ID,
+		"email":   user.Email,
 	}, nil
 }
 
-// ForgotPassword is the function will receive an email to process forgot password service
-func ForgotPassword(email string) (int, error) {
+// ForgotPassword is the function will receive an email to process forgot password services
+func ForgotPassword(email string) *utils.ServiceError {
 	db := config.DB
 	// Step 1: Check user?
 	var user users.User
 	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
-		return http.StatusBadRequest, errors.New("user not found")
+		return &utils.ServiceError{
+			StatusCode: http.StatusUnauthorized,
+			Message:    "Invalid email or password",
+			Err:        err,
+		}
 	}
 	// Step 2: Generate 6 digits code
 	verificationCode := verificationService.GenerateVerificationCode()
 
 	// Step 3: Save the verifications code to the database
 	if err := verificationService.SaveVerificationCode(email, verificationCode); err != nil {
-		return http.StatusInternalServerError, errors.New("failed to save verifications code")
+		return &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to save verifications code",
+			Err:        err,
+		}
 	}
 
 	// Step 4: Send the verifications code via email
 	if err := verificationService.SendVerificationEmail(email, verificationCode); err != nil {
-		return http.StatusInternalServerError, errors.New("failed to send verifications email")
+		return &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to send verifications code",
+			Err:        err,
+		}
 	}
 
-	return http.StatusOK, nil
+	return nil
 }
 
 // RenewPassword is the function to change the password follow by user
-func RenewPassword(newPassword, userID string) (int, error) {
+func RenewPassword(request dto.RenewPasswordRequest) *utils.ServiceError {
 	// Start a database transaction
 	tx := config.DB.Begin()
 	var user users.User
 
 	// Step 1: Check if the user exists
-	if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
+	if err := tx.Where("id = ?", request.UserID).First(&user).Error; err != nil {
 		tx.Rollback()
-		return http.StatusNotFound, errors.New("user not found")
+		return &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "User not found",
+			Err:        err,
+		}
+	}
+	// Step 2: Validate with redis db
+	validated, err := utils.VerifyRedisTokenWithUserID(request.UserID.String(), request.Token)
+	if err != nil || !validated {
+		tx.Rollback()
+		return &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Invalid or expired token",
+			Err:        err,
+		}
 	}
 
-	// Step 2: Hash the new password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	// Step 3: Hash the new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.NewPassword), 12)
 	if err != nil {
 		tx.Rollback()
-		return http.StatusInternalServerError, errors.New("failed to hash new password")
+		return &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to hash new password",
+			Err:        err,
+		}
 	}
 
 	// Step 4: Update the password in the database
 	user.Password = string(hashedPassword)
 	if err := tx.Save(&user).Error; err != nil {
 		tx.Rollback()
-		return http.StatusInternalServerError, errors.New("failed to save new password")
+		return &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to save new password",
+			Err:        err,
+		}
 	}
 
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
-		return http.StatusInternalServerError, errors.New("failed to commit transaction")
+		return &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to commit transaction",
+			Err:        err,
+		}
 	}
 
 	// Step 5: Return success response
-	return http.StatusOK, nil
+	return nil
 }
 
 // ChangePassword is the function to change the password follow by user
-func ChangePassword(oldPassword, newPassword, userID string) (int, error) {
+func ChangePassword(oldPassword, newPassword string, userID uuid.UUID) *utils.ServiceError {
 	// Start a database transaction
 	tx := config.DB.Begin()
 	var user users.User
@@ -237,37 +328,57 @@ func ChangePassword(oldPassword, newPassword, userID string) (int, error) {
 	// Step 1: Check if the user exists
 	if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
 		tx.Rollback()
-		return http.StatusNotFound, errors.New("user not found")
+		return &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "User not found",
+			Err:        err,
+		}
 	}
 
 	// Step 2: Validate the old password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
 		tx.Rollback()
-		return http.StatusUnauthorized, errors.New("old password is incorrect")
+		return &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Invalid old password",
+			Err:        err,
+		}
 	}
 
 	// Step 3: Hash the new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		tx.Rollback()
-		return http.StatusInternalServerError, errors.New("failed to hash new password")
+		return &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to hash new password",
+			Err:        err,
+		}
 	}
 
 	// Step 4: Update the password in the database
 	user.Password = string(hashedPassword)
 	if err := tx.Save(&user).Error; err != nil {
 		tx.Rollback()
-		return http.StatusInternalServerError, errors.New("failed to save new password")
+		return &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to save new password",
+			Err:        err,
+		}
 	}
 
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
-		return http.StatusInternalServerError, errors.New("failed to commit transaction")
+		return &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to commit transaction",
+			Err:        err,
+		}
 	}
 
 	// Step 5: Return success response
-	return http.StatusOK, nil
+	return nil
 }
 
 func GetUserImageByID(userID uint) (string, *utils.ServiceError) {

@@ -7,7 +7,7 @@ DB_NAME = "skypipe"
 DB_USER = "admin"
 
 group "default" {
-  targets = ["app", "db"]
+  targets = ["app", "db", "redis"]
 }
 
 target "app" {
@@ -31,4 +31,11 @@ target "db" {
     POSTGRES_USER: DB_USER
     POSTGRES_PASSWORD: DB_PASS
   }
+}
+
+target "redis" {
+  context = "."
+  dockerfile = "Dockerfile.redis"
+  tags = ["${APP_NAME}-redis:${VERSION}"]
+  platforms = ["linux/amd64"]
 }

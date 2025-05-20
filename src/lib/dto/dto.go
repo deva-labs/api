@@ -26,3 +26,28 @@ type PermissionInterface struct {
 	Resource string
 	Action   string
 }
+
+type VerificationCodeRequest struct {
+	Token  string    `json:"token" validate:"required"`
+	UserID uuid.UUID `json:"user_id" validate:"required,uuid4"`
+	Email  string    `json:"email" validate:"required,email"`
+	Code   string    `json:"code" validate:"required"`
+}
+
+type RenewPasswordRequest struct {
+	NewPassword string    `json:"new_password" validate:"required,min=8"`
+	UserID      uuid.UUID `json:"user_id" validate:"required,uuid4"`
+	Token       string    `json:"token" validate:"required"`
+}
+
+type CreateFiberRequest struct {
+	ProjectName string            `json:"project_name"`
+	UserID      uuid.UUID         `json:"user_id"`
+	Env         map[string]string `json:"env"`
+}
+
+type ChangePasswordRequest struct {
+	OldPassword string    `json:"old_password" validate:"required,min=8"`
+	NewPassword string    `json:"new_password" validate:"required,min=8"`
+	UserID      uuid.UUID `json:"user_id"`
+}

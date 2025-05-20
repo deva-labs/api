@@ -3,6 +3,11 @@ services:
     image: ${APP_NAME}-postgres:${VERSION}
     container_name: ${APP_NAME}-postgres
     restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -32,12 +37,31 @@ services:
       - DB_PASS=${DB_PASS}
     depends_on:
       - db
+      - redis
+    networks:
+      - backend
+
+  redis:
+    image: ${APP_NAME}-redis:${VERSION}
+    container_name: ${APP_NAME}-redis
+    restart: always
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    ports:
+      - "6371:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - backend
 
 volumes:
   db_data:
     name: ${APP_NAME}-postgres-data
+  redis_data:
+    name: ${APP_NAME}-redis-data
 
 networks:
   backend:
@@ -61,3 +85,11 @@ x-bake:
     platforms: ["linux/amd64"]
     cache-from: type=registry,ref=${APP_NAME}-${FRAMEWORK}:cache
     cache-to: type=registry,ref=${APP_NAME}-${FRAMEWORK}:cache,mode=max
+
+  redis:
+    dockerfile: Dockerfile.redis
+    tags:
+      - ${APP_NAME}-redis:${VERSION}
+    platforms: ["linux/amd64"]
+    cache-from: type=registry,ref=${APP_NAME}-redis:cache
+    cache-to: type=registry,ref=${APP_NAME}-redis:cache,mode=max

@@ -298,8 +298,8 @@ EOF
 ### 3.2 Create Systemd Override
 
 ```bash
-sudo mkdir -p /etc/systemd/system/docker.service.d
-sudo tee /etc/systemd/system/docker.service.d/override.conf <<EOF
+sudo mkdir -p /etc/systemd/system/docker.services.d
+sudo tee /etc/systemd/system/docker.services.d/override.conf <<EOF
 [Service]
 ExecStart=
 ExecStart=/usr/bin/dockerd

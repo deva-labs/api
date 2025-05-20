@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"path/filepath"
+	"skypipe/src/lib/dto"
+	"skypipe/src/lib/interfaces"
 	projects "skypipe/src/modules/projects/services"
 	"skypipe/src/utils"
 	"skypipe/store"
@@ -12,40 +14,48 @@ import (
 
 // CreateNewFiberProject is a controller function to handle create new fiber project
 func CreateNewFiberProject(c *fiber.Ctx) error {
-	var requestData struct {
-		ProjectName string            `json:"project_name"`
-		UserID      uint              `json:"user_id"`
-		Env         map[string]string `json:"env"`
-	}
+	var requestData dto.CreateFiberRequest
 
 	// Bind the incoming JSON request data to requestData struct
-	if err := utils.BindJson(c, &requestData); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusBadRequest,
-				"message": "Invalid request data",
+	serviceErr := utils.BindJson(c, &requestData)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
-			"error": err.Error(),
+			Error: errStr,
 		})
 	}
 
 	// Get socket id from users
 	conn, _ := store.GetUserSocket(requestData.UserID)
 	if conn == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "WebSocket connection not found for users",
+		return c.Status(fiber.StatusNotFound).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    fiber.StatusNotFound,
+				Message: "WebSocket connection not found for users",
+			},
+			Error: nil,
 		})
 	}
 
-	// Call the service function to create the fiber project
-	zipPath, serviceErr := projects.CreateFiberProject(conn, requestData.ProjectName, requestData.Env)
-	if serviceErr != nil {
-		return c.Status(serviceErr.StatusCode).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    serviceErr.StatusCode,
-				"message": serviceErr.Message,
+	// Call the services function to create the fiber project
+	zipPath, serviceError := projects.CreateFiberProject(conn, requestData.ProjectName, requestData.Env)
+	if serviceError != nil {
+		s := serviceError.Err.Error()
+		errStr := &s
+		return c.Status(serviceError.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceError.StatusCode,
+				Message: serviceError.Message,
 			},
-			"error": serviceErr.Err.Error(),
+			Error: errStr,
 		})
 	}
 
@@ -60,13 +70,14 @@ func CreateNewFiberProject(c *fiber.Ctx) error {
 		},
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code": fiber.StatusCreated,
-			"message": fmt.Sprintf("Project '%s' with framework '%s' created successfully",
+	return c.Status(fiber.StatusCreated).JSON(interfaces.Response{
+		Data: responseData,
+		Status: interfaces.Status{
+			Code: fiber.StatusOK,
+			Message: fmt.Sprintf("Project '%s' with framework '%s' created successfully",
 				requestData.ProjectName,
 				requestData.Env["FRAMEWORK"]),
 		},
-		"data": responseData,
+		Error: nil,
 	})
 }

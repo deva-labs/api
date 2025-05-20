@@ -1,16 +1,24 @@
 package utils
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"github.com/creack/pty"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 	"math"
 	"net/http"
 	"os"
 	"os/exec"
+	"skypipe/src/config"
 	"skypipe/src/lib/interfaces"
+	"skypipe/src/modules/key_token/models"
+	users "skypipe/src/modules/users/models"
+	verifications "skypipe/src/modules/verifications/models"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +75,14 @@ func ConvertStringToUint(str string) uint {
 	return uint(i)
 }
 
+func ConvertStringToInt(str string) int {
+	i, err := strconv.Atoi(str)
+	if err != nil {
+		panic(err)
+	}
+	return i
+}
+
 type ServiceError struct {
 	StatusCode int
 	Message    string
@@ -113,6 +129,7 @@ func BindJson(c *fiber.Ctx, request interface{}) *ServiceError {
 		return &ServiceError{
 			StatusCode: http.StatusBadRequest,
 			Message:    "Invalid input",
+			Err:        err,
 		}
 	}
 	return nil
@@ -195,9 +212,10 @@ func transformAction(action string) string {
 	return action
 }
 
-func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	return string(bytes), err
+func HashToken(token string) string {
+	hashedToken := sha256.Sum256([]byte(token))
+	tokenKey := hex.EncodeToString(hashedToken[:])
+	return tokenKey
 }
 
 func CheckPasswordHash(pw, hash string) bool {
@@ -205,7 +223,50 @@ func CheckPasswordHash(pw, hash string) bool {
 	return err == nil
 }
 
-// Stub example – replace with real API call to hCaptcha or Google reCAPTCHA
+func VerifyRedisTokenWithUserID(userID, token string) (bool, error) {
+	rdb := config.RDB
+	ctx := config.Ctx
+	clientToken := HashToken(token)
+	storedHash, err := rdb.Get(ctx, userID).Result()
+	if err != nil || clientToken != storedHash {
+		return false, err
+	}
+	return true, nil
+}
+
+// VerifyCaptcha Stub example – replace with real API call to hCaptcha or Google reCAPTCHA
 func VerifyCaptcha(token string) bool {
 	return token == "pass" // or call external verifications
+}
+
+func CleanUserOldTokens(db *gorm.DB, email string, userID uuid.UUID) error {
+	rootID, err := GetRootUserID(db)
+	if err != nil {
+		return fmt.Errorf("failed to get root user ID: %w", err)
+	}
+
+	// Set UpdatedBy manually via Model Update
+	if err := db.Where("email = ?", email).Delete(&verifications.VerificationCode{}).Error; err != nil {
+		return err
+	}
+	if err := db.Model(&key_token.AccessToken{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]interface{}{"updated_by": rootID}).Delete(&key_token.AccessToken{}).Error; err != nil {
+		return err
+	}
+	if err := db.Model(&key_token.RefreshToken{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]interface{}{"updated_by": rootID}).Delete(&key_token.RefreshToken{}).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetRootUserID(db *gorm.DB) (uuid.UUID, error) {
+	var user users.User
+	if err := db.Where("name = ?", "root").First(&user).Error; err != nil {
+		return uuid.Nil, err
+	}
+	return user.ID, nil
 }

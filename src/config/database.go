@@ -24,7 +24,7 @@ import (
 	users "skypipe/src/modules/users/models"
 	verifications "skypipe/src/modules/verifications/models"
 	webhooks "skypipe/src/modules/webhooks/models"
-	"skypipe/src/utils"
+	"skypipe/src/services"
 )
 
 var DB *gorm.DB
@@ -241,7 +241,7 @@ func assignPermissionsToAdmin(db *gorm.DB, permissions []roles.Permission) error
 
 func seedRootUser(db *gorm.DB) error {
 	log.Println("🔹 Creating root user...")
-	hashedPassword, err := utils.HashPassword("skypipe@root-admin")
+	hashedPassword, err := services.HashPassword("skypipe@root-admin")
 	if err != nil {
 		return err
 	}

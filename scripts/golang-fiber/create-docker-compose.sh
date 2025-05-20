@@ -35,7 +35,7 @@ fi
 # --- Ensure output directory exists ---
 mkdir -p "$WORKDIR"
 
-# --- Generate DB service ---
+# --- Generate DB services ---
 generate_db_service() {
   case "$DB_TYPE" in
     mysql)
@@ -108,7 +108,7 @@ EOF
     generate_db_service
   fi
 
-  # App service
+  # App services
   cat <<EOF
   app:
     image: \${APP_NAME}-\${FRAMEWORK}:\${APP_VERSION}

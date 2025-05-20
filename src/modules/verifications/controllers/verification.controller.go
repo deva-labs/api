@@ -3,77 +3,96 @@ package verifications
 import (
 	"github.com/gofiber/fiber/v2"
 	"net/http"
-	verifications "skypipe/src/modules/verifications/models"
+	"skypipe/src/lib/dto"
+	"skypipe/src/lib/interfaces"
 	services "skypipe/src/modules/verifications/services"
+	"skypipe/src/utils"
 )
 
-// VerifyCode handles the verifications code process and token generation (simple version)
-func VerifyCode(c *fiber.Ctx) error {
-	var code verifications.VerificationCode
+// VerifyCodeAndSetPasswordToken handles the verifications code process and token generation (simple version)
+func VerifyCodeAndSetPasswordToken(c *fiber.Ctx) error {
+	var request dto.VerificationCodeRequest
 
 	// Parse JSON input
-	if err := c.BodyParser(&code); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    http.StatusBadRequest,
-				"message": "Invalid input",
+	serviceErr := utils.BindJson(c, &request)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
-			"error": err.Error(),
+			Error: errStr,
 		})
 	}
 
-	// Call the service to verify the code and generate tokens
-	token, err := services.VerifyCode(code.Code, code.Email)
-	if err != nil {
-		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    http.StatusUnauthorized,
-				"message": err.Error(),
+	// Call the services to verify the code and generate tokens
+	token, serviceError := services.VerifyCodeAndSetPasswordToken(request.Code, request.Email)
+	if serviceError != nil {
+		s := serviceError.Err.Error()
+		errStr := &s
+		return c.Status(serviceError.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceError.StatusCode,
+				Message: serviceError.Message,
 			},
+			Error: errStr,
 		})
 	}
 
 	// Success response
-	return c.Status(http.StatusOK).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    http.StatusOK,
-			"message": "Verification successful",
+	return c.Status(http.StatusOK).JSON(interfaces.Response{
+		Data: token,
+		Status: interfaces.Status{
+			Code:    http.StatusOK,
+			Message: "Verification successfully.",
 		},
-		"data": token,
+		Error: nil,
 	})
 }
 
 func VerifyCodeAndGenerateToken(c *fiber.Ctx) error {
-	var code verifications.VerificationCode
-
+	var code dto.VerificationCodeRequest
 	// Parse JSON input
-	if err := c.BodyParser(&code); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    fiber.StatusBadRequest,
-				"message": "Invalid input",
+	serviceErr := utils.BindJson(c, &code)
+	if serviceErr != nil {
+		s := serviceErr.Err.Error()
+		errStr := &s
+		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceErr.StatusCode,
+				Message: serviceErr.Message,
 			},
-			"error": err.Error(),
+			Error: errStr,
 		})
 	}
 
-	// Call the service to verify the code and generate tokens
-	response, statusCode, err := services.VerifyCodeAndGenerateTokens(code)
-	if err != nil {
-		return c.Status(statusCode).JSON(fiber.Map{
-			"status": fiber.Map{
-				"code":    statusCode,
-				"message": err.Error(),
+	// Call the services to verify the code and generate tokens
+	response, serviceError := services.VerifyCodeAndGenerateTokens(code)
+	if serviceError != nil {
+		s := serviceError.Err.Error()
+		errStr := &s
+		return c.Status(serviceError.StatusCode).JSON(interfaces.Response{
+			Data: nil,
+			Status: interfaces.Status{
+				Code:    serviceError.StatusCode,
+				Message: serviceError.Message,
 			},
+			Error: errStr,
 		})
 	}
 
 	// Success response
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"status": fiber.Map{
-			"code":    fiber.StatusOK,
-			"message": "Verification successful",
+	return c.Status(fiber.StatusOK).JSON(interfaces.Response{
+		Data: response,
+		Status: interfaces.Status{
+			Code:    http.StatusOK,
+			Message: "Login successful! Redirecting to home.",
 		},
-		"data": response,
+		Error: nil,
 	})
 }

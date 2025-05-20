@@ -38,14 +38,14 @@ func RegisterRoutes(app *fiber.App) {
 		authRoutes.Post("verifications", verifications.VerifyCodeAndGenerateToken)                                 // 6
 		authRoutes.Post("refresh-access-token", key_token.RefreshAccessToken)                                      // 7
 		authRoutes.Post("forgot-password", users.ForgotPassword)                                                   // 8
-		authRoutes.Post("confirm-forgot-password", verifications.VerifyCode)                                       // 9
+		authRoutes.Post("confirm-forgot-password", verifications.VerifyCodeAndSetPasswordToken)                    // 9
 		authRoutes.Post("change-password", users.ChangePassword)                                                   // 10
 		authRoutes.Post("reset-password", users.RenewPassword)
 	}
 
 	projectsRoutes := api.Group("projects")
 	{
-		projectsRoutes.Post("create", projects.CreateNewFiberProject)
+		projectsRoutes.Post("create", authMiddleware(), projects.CreateNewFiberProject)
 	}
 
 	// Testing Routes
