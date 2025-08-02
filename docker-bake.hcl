@@ -1,9 +1,9 @@
 # Define variables with direct values (fallbacks)
-APP_NAME = "skypipe-api"
+APP_NAME = "deva-api"
 FRAMEWORK = "fiber"
 VERSION = "1.0.0"
-DB_PASS = "skypipe-admin"
-DB_NAME = "skypipe"
+DB_PASS = "deva-admin"
+DB_NAME = "deva"
 DB_USER = "admin"
 
 group "default" {

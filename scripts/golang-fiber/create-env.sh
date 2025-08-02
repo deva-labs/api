@@ -5,6 +5,7 @@ set -e
 # Print warning if some critical envs are missing
 : "${PROJECT_NAME:?PROJECT_NAME is required}"
 : "${GO_VERSION:?GO_VERSION is required}"
+: "${AIR_VERSION:?AIR_VERSION is required}"
 : "${DB_TYPE:?DB_TYPE is required}"
 : "${APP_VERSION:?APP_VERSION is required}"
 : "${DB_VERSION:?DB_VERSION is required}"
@@ -36,6 +37,7 @@ mkdir -p "public/${PROJECT_NAME}"
 # Create .env file
 cat <<EOF > "public/${PROJECT_NAME}/.env"
 GO_VERSION=${GO_VERSION}
+AIR_VERSION=${AIR_VERSION}
 DB_TYPE=${DB_TYPE}
 APP_NAME=${APP_NAME}
 APP_VERSION=${APP_VERSION}

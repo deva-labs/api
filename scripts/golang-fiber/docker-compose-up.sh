@@ -3,7 +3,6 @@
 set -e
 
 BASE_DIR="${BASE_DIR:-/app}"
-CONTEXT_NAME="${CONTEXT_NAME:-myremote}"
 
 ENV_PATH="${BASE_DIR}/public/${PROJECT_NAME}/.env"
 
@@ -25,6 +24,7 @@ fi
 # Ensure essential variables exist
 : "${RUN_WITH_DOCKER_COMPOSE:?❌ RUN_WITH_DOCKER_COMPOSE environment variable is not set}"
 : "${PROJECT_NAME:?❌ PROJECT_NAME is not set}"
+: "${DOCKER_HOST:?❌ DOCKER_HOST is not set}"
 : "${TLSCACERT_PATH:?❌ TLSCACERT_PATH is not set}"
 : "${TLSCERT_PATH:?❌ TLSCERT_PATH is not set}"
 : "${TLSKEY_PATH:?❌ TLSKEY_PATH is not set}"
@@ -32,17 +32,18 @@ fi
 
 # Change to project directory
 cd "${BASE_DIR}/public/${PROJECT_NAME}" >/dev/null 2>&1
-
+unset DOCKER_HOST
 # Docker context setup (quiet mode)
 if ! docker context inspect "$CONTEXT_NAME" >/dev/null 2>&1; then
   docker context create "$CONTEXT_NAME" \
-    --docker "host=tcp://192.168.237.116:2376,ca=${TLSCACERT_PATH},cert=${TLSCERT_PATH},key=${TLSKEY_PATH}" >/dev/null 2>&1
+    --docker "host=tcp://${DOCKER_HOST}:443,ca=${TLSCACERT_PATH},cert=${TLSCERT_PATH},key=${TLSKEY_PATH}" >/dev/null 2>&1
 fi
 
 docker context use "$CONTEXT_NAME" >/dev/null 2>&1
 
 # Execute commands based on RUN_WITH_DOCKER_COMPOSE
 if [ "$RUN_WITH_DOCKER_COMPOSE" == "true" ]; then
+    echo "[INFO] Running Docker Buildx..."
     docker buildx bake --load >/dev/null 2>&1
     sleep 3
     if docker compose version &> /dev/null; then

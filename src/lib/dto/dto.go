@@ -22,6 +22,9 @@ type LoginRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
+type CreateCaptchaRequest struct {
+	UserID uuid.UUID `json:"user_id" validate:"required,uuid4"`
+}
 type PermissionInterface struct {
 	Resource string
 	Action   string
@@ -38,6 +41,7 @@ type RenewPasswordRequest struct {
 	NewPassword string    `json:"new_password" validate:"required,min=8"`
 	UserID      uuid.UUID `json:"user_id" validate:"required,uuid4"`
 	Token       string    `json:"token" validate:"required"`
+	Captcha     string    `json:"captcha" validate:"required,min=6"`
 }
 
 type CreateFiberRequest struct {

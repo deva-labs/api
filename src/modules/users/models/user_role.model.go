@@ -1,9 +1,9 @@
 package users
 
 import (
+	roles "deva/src/modules/roles/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	roles "skypipe/src/modules/roles/models"
 	"time"
 )
 

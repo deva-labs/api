@@ -4,15 +4,15 @@ tmp_dir = "bin"
 
 [build]
   args_bin = []
-  bin = "./bin/skypipe-api"
-  cmd = "go build -buildvcs=false -o ./bin/skypipe-api ."
+  bin = "./bin/deva-api"
+  cmd = "go build -buildvcs=false -o ./bin/deva-api ."
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "public", "packages"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = "APP_PORT=2350 ./bin/skypipe-api"
+  full_bin = "APP_PORT=2350 ./bin/deva-api"
   include_dir = []
   include_ext = ["go", "tpl", "tmpl", "html", "sh"]
   include_file = []

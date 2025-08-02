@@ -1,6 +1,16 @@
 package users
 
 import (
+	"deva/src/config"
+	"deva/src/functions"
+	"deva/src/lib/dto"
+	key_token "deva/src/modules/key_token/services"
+	plans "deva/src/modules/plans/models"
+	roles "deva/src/modules/roles/models"
+	users "deva/src/modules/users/models"
+	verificationService "deva/src/modules/verifications/services"
+	"deva/src/services"
+	"deva/src/utils"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
@@ -8,15 +18,6 @@ import (
 	"gorm.io/gorm"
 	"net/http"
 	"os"
-	"skypipe/src/config"
-	"skypipe/src/lib/dto"
-	key_token "skypipe/src/modules/key_token/services"
-	plans "skypipe/src/modules/plans/models"
-	roles "skypipe/src/modules/roles/models"
-	users "skypipe/src/modules/users/models"
-	verificationService "skypipe/src/modules/verifications/services"
-	"skypipe/src/services"
-	"skypipe/src/utils"
 	"time"
 )
 
@@ -26,7 +27,7 @@ func GetUserInfo(userID uuid.UUID) (*users.User, *utils.ServiceError) {
 	var user users.User
 
 	// Preload profile based on defined relationship
-	if err := db.Preload("Profile").First(&user, "id = ?", userID).Error; err != nil {
+	if err := db.Preload("Profile").Preload("Plan").First(&user, "id = ?", userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &utils.ServiceError{
 				StatusCode: http.StatusBadRequest,
@@ -187,6 +188,7 @@ func LoginService(body dto.LoginRequest) (map[string]interface{}, *utils.Service
 			Err:        err,
 		}
 	}
+	redisKey := fmt.Sprintf("login_token:%s", user.ID.String())
 	tokenKey := utils.HashToken(token)
 
 	ttl := time.Minute * 5
@@ -196,7 +198,7 @@ func LoginService(body dto.LoginRequest) (map[string]interface{}, *utils.Service
 		}
 	}
 
-	if err := rdb.Set(ctx, user.ID.String(), tokenKey, ttl).Err(); err != nil {
+	if err := rdb.Set(ctx, redisKey, tokenKey, ttl).Err(); err != nil {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusBadRequest,
 			Message:    "Could not store token",
@@ -222,39 +224,79 @@ func LoginService(body dto.LoginRequest) (map[string]interface{}, *utils.Service
 }
 
 // ForgotPassword is the function will receive an email to process forgot password services
-func ForgotPassword(email string) *utils.ServiceError {
+func ForgotPassword(email string) (map[string]interface{}, *utils.ServiceError) {
 	db := config.DB
+	rdb := config.RDB
+	ctx := config.Ctx
 	// Step 1: Check user?
 	var user users.User
 	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
-		return &utils.ServiceError{
+		return nil, &utils.ServiceError{
 			StatusCode: http.StatusUnauthorized,
 			Message:    "Invalid email or password",
 			Err:        err,
 		}
 	}
-	// Step 2: Generate 6 digits code
+	// Step 2: Clean up old records (accessToken, refreshToken, verificationCode)
+	if err := utils.CleanUserOldTokens(db, user.Email, user.ID); err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to clear user session",
+			Err:        err,
+		}
+	}
+
+	// Step 3: Generate and save verification code
 	verificationCode := verificationService.GenerateVerificationCode()
-
-	// Step 3: Save the verifications code to the database
-	if err := verificationService.SaveVerificationCode(email, verificationCode); err != nil {
-		return &utils.ServiceError{
+	if err := verificationService.SaveVerificationCode(user.Email, verificationCode); err != nil {
+		return nil, &utils.ServiceError{
 			StatusCode: http.StatusInternalServerError,
-			Message:    "Failed to save verifications code",
+			Message:    "Failed to save verification code",
 			Err:        err,
 		}
 	}
 
-	// Step 4: Send the verifications code via email
-	if err := verificationService.SendVerificationEmail(email, verificationCode); err != nil {
-		return &utils.ServiceError{
+	// Step 4: Generate and store secure token (Redis)
+	token, err := key_token.GenerateSecureToken(32)
+	if err != nil {
+		return nil, &utils.ServiceError{
 			StatusCode: http.StatusInternalServerError,
-			Message:    "Failed to send verifications code",
+			Message:    "Failed to generate token",
+			Err:        err,
+		}
+	}
+	tokenKey := utils.HashToken(token)
+
+	ttl := time.Minute * 5
+	if ttlEnv := os.Getenv("RESET_TOKEN_TTL"); ttlEnv != "" {
+		if parsed, err := time.ParseDuration(ttlEnv); err == nil {
+			ttl = parsed
+		}
+	}
+	redisKey := fmt.Sprintf("reset_password_token:%s", user.ID.String())
+	if err := rdb.Set(ctx, redisKey, tokenKey, ttl).Err(); err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Could not store token",
 			Err:        err,
 		}
 	}
 
-	return nil
+	// Step 5: Send email
+	if err := verificationService.SendVerificationEmail(user.Email, verificationCode); err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to send verification email",
+			Err:        err,
+		}
+	}
+
+	// Return login metadata
+	return map[string]interface{}{
+		"token":   token,
+		"user_id": user.ID,
+		"email":   user.Email,
+	}, nil
 }
 
 // RenewPassword is the function to change the password follow by user
@@ -273,16 +315,34 @@ func RenewPassword(request dto.RenewPasswordRequest) *utils.ServiceError {
 		}
 	}
 	// Step 2: Validate with redis db
-	validated, err := utils.VerifyRedisTokenWithUserID(request.UserID.String(), request.Token)
-	if err != nil || !validated {
+	redisKey := fmt.Sprintf("reset_password_token:%s", user.ID.String())
+	validated, err := utils.VerifyRedisTokenWithUserID(redisKey, request.Token)
+	if err != nil {
+		tx.Rollback()
+		return &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Token validation error",
+			Err:        err,
+		}
+	}
+	if !validated {
 		tx.Rollback()
 		return &utils.ServiceError{
 			StatusCode: http.StatusBadRequest,
 			Message:    "Invalid or expired token",
-			Err:        err,
+			Err:        errors.New("token is not valid"),
 		}
 	}
 
+	// Step 3: Validate Captcha
+	if err := functions.ValidateCaptcha(request.Captcha, request.UserID); err != nil {
+		tx.Rollback()
+		return &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Invalid captcha",
+			Err:        err,
+		}
+	}
 	// Step 3: Hash the new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.NewPassword), 12)
 	if err != nil {

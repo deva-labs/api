@@ -2,6 +2,11 @@ package utils
 
 import (
 	"crypto/sha256"
+	"deva/src/config"
+	"deva/src/lib/interfaces"
+	"deva/src/modules/key_token/models"
+	users "deva/src/modules/users/models"
+	verifications "deva/src/modules/verifications/models"
 	"encoding/hex"
 	"fmt"
 	"github.com/creack/pty"
@@ -14,11 +19,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"skypipe/src/config"
-	"skypipe/src/lib/interfaces"
-	"skypipe/src/modules/key_token/models"
-	users "skypipe/src/modules/users/models"
-	verifications "skypipe/src/modules/verifications/models"
 	"strconv"
 	"strings"
 	"time"
@@ -223,11 +223,11 @@ func CheckPasswordHash(pw, hash string) bool {
 	return err == nil
 }
 
-func VerifyRedisTokenWithUserID(userID, token string) (bool, error) {
+func VerifyRedisTokenWithUserID(redisKey, token string) (bool, error) {
 	rdb := config.RDB
 	ctx := config.Ctx
 	clientToken := HashToken(token)
-	storedHash, err := rdb.Get(ctx, userID).Result()
+	storedHash, err := rdb.Get(ctx, redisKey).Result()
 	if err != nil || clientToken != storedHash {
 		return false, err
 	}

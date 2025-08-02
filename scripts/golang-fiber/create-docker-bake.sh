@@ -16,6 +16,7 @@ else
         ENV_FILE="$ALT_ENV_FILE"
         export $(grep -v '^#' "$ENV_FILE" | xargs)
     else
+        echo "❌ .env file not found"
         exit 1
     fi
 fi
@@ -24,6 +25,7 @@ fi
 : "${APP_NAME:?APP_NAME environment variable not set}"
 : "${FRAMEWORK:?FRAMEWORK environment variable not set}"
 : "${APP_VERSION:?APP_VERSION environment variable not set}"
+: "${WITH_DB:?WITH_DB environment variable not set}"
 : "${DB_PASS:?DB_PASS environment variable not set}"
 : "${DB_NAME:?DB_NAME environment variable not set}"
 : "${DB_USER:?DB_USER environment variable not set}"
@@ -31,7 +33,7 @@ fi
 # Ensure output directory exists
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 
-# Write to docker-bake.hcl
+# Write header lines of docker-bake.hcl
 cat <<EOF > "$OUTPUT_FILE"
 APP_NAME = "${APP_NAME}"
 FRAMEWORK = "${FRAMEWORK}"
@@ -41,7 +43,7 @@ DB_NAME = "${DB_NAME}"
 DB_USER = "${DB_USER}"
 
 group "default" {
-  targets = ["app", "db"]
+  targets = ["app"$( [ "$WITH_DB" = "true" ] && echo ', "db"' )]
 }
 
 target "app" {
@@ -54,6 +56,11 @@ target "app" {
     APP_VERSION = APP_VERSION
   }
 }
+EOF
+
+# Nếu WITH_DB = "true" thì thêm target db
+if [ "$WITH_DB" = "true" ]; then
+cat <<EOF >> "$OUTPUT_FILE"
 
 target "db" {
   context = "."
@@ -68,6 +75,7 @@ target "db" {
   }
 }
 EOF
+fi
 
 sleep 1
 exit 0

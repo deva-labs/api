@@ -1,10 +1,10 @@
 package secrets
 
 import (
+	projects "deva/src/modules/projects/models"
+	users "deva/src/modules/users/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	projects "skypipe/src/modules/projects/models"
-	users "skypipe/src/modules/users/models"
 	"time"
 )
 

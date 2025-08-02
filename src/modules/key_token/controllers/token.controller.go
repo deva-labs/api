@@ -1,9 +1,9 @@
 package key_token
 
 import (
+	"deva/src/lib/interfaces"
+	key_token "deva/src/modules/key_token/services"
 	"github.com/gofiber/fiber/v2"
-	"skypipe/src/lib/interfaces"
-	key_token "skypipe/src/modules/key_token/services"
 	"strings"
 )
 

@@ -1,13 +1,15 @@
 package routes
 
 import (
+	"deva/src/middlewares"
+	captcha "deva/src/modules/captcha/controllers"
+	key_token "deva/src/modules/key_token/controllers"
+	"deva/src/modules/projects/controllers"
+	users "deva/src/modules/users/controllers"
+	verifications "deva/src/modules/verifications/controllers"
+	VideoControllers "deva/src/modules/videos/controllers"
+	"deva/src/utils"
 	"github.com/gofiber/fiber/v2"
-	"skypipe/src/middlewares"
-	key_token "skypipe/src/modules/key_token/controllers"
-	"skypipe/src/modules/projects/controllers"
-	users "skypipe/src/modules/users/controllers"
-	verifications "skypipe/src/modules/verifications/controllers"
-	"skypipe/src/utils"
 )
 
 // RegisterRoutes is a Router Controller
@@ -30,7 +32,7 @@ func RegisterRoutes(app *fiber.App) {
 	})
 
 	// Authentication Routes
-	authRoutes := api.Group("/auth")
+	authRoutes := api.Group("auth")
 	{
 		authRoutes.Get("user-info", authMiddleware(), authzMiddleware(needPermission["USER_READ"]), users.GetUser) // 1
 		authRoutes.Post("register", users.Register)                                                                // 2
@@ -38,14 +40,18 @@ func RegisterRoutes(app *fiber.App) {
 		authRoutes.Post("verifications", verifications.VerifyCodeAndGenerateToken)                                 // 6
 		authRoutes.Post("refresh-access-token", key_token.RefreshAccessToken)                                      // 7
 		authRoutes.Post("forgot-password", users.ForgotPassword)                                                   // 8
-		authRoutes.Post("confirm-forgot-password", verifications.VerifyCodeAndSetPasswordToken)                    // 9
+		authRoutes.Post("verify-forgot-password", verifications.VerifyCodeAndSetPasswordToken)                     // 9
 		authRoutes.Post("change-password", users.ChangePassword)                                                   // 10
 		authRoutes.Post("reset-password", users.RenewPassword)
 	}
 
+	captchaRoutes := api.Group("captcha")
+	{
+		captchaRoutes.Post("create", captcha.CreateCaptcha)
+	}
 	projectsRoutes := api.Group("projects")
 	{
-		projectsRoutes.Post("create", authMiddleware(), projects.CreateNewFiberProject)
+		projectsRoutes.Post("create", projects.CreateNewFiberProject)
 	}
 
 	// Testing Routes
@@ -53,4 +59,12 @@ func RegisterRoutes(app *fiber.App) {
 	//{
 	//	testingRoutes.Post("/animation", tests.TestProgressBar60Seconds)
 	//}
+
+	// Videos Routes
+	videos := api.Group("/videos")
+	{
+		videos.Post("", VideoControllers.ListAll)
+		videos.Post("newest", VideoControllers.ListNewest)
+		videos.Post("details", VideoControllers.Details)
+	}
 }

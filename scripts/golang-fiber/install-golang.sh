@@ -42,7 +42,6 @@ else
 
     mkdir -p "$GO_ROOT_DIR"
     tar -C "$GO_ROOT_DIR" --strip-components=1 -xzf "$INSTALL_TAR"
-    rm -f "$INSTALL_TAR"
 fi
 
 sleep 1

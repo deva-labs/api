@@ -1,14 +1,15 @@
 package users
 
 import (
+	"deva/src/functions"
+	"deva/src/lib/dto"
+	"deva/src/lib/interfaces"
+	users "deva/src/modules/users/models"
+	service "deva/src/modules/users/services"
+	"deva/src/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"net/http"
-	"skypipe/src/lib/dto"
-	"skypipe/src/lib/interfaces"
-	users "skypipe/src/modules/users/models"
-	service "skypipe/src/modules/users/services"
-	"skypipe/src/utils"
 )
 
 func GetUser(c *fiber.Ctx) error {
@@ -51,7 +52,7 @@ func GetUser(c *fiber.Ctx) error {
 	}
 
 	return c.Status(http.StatusOK).JSON(interfaces.Response{
-		Data: userInfo,
+		Data: functions.ToUserResponse(userInfo),
 		Status: interfaces.Status{
 			Code:    http.StatusOK,
 			Message: "Retrieved the profile of user successfully",
@@ -156,22 +157,22 @@ func ForgotPassword(c *fiber.Ctx) error {
 		})
 	}
 
-	serviceErr = service.ForgotPassword(request.Email)
-	if serviceErr != nil {
-		s := serviceErr.Err.Error()
+	response, serviceError := service.ForgotPassword(request.Email)
+	if serviceError != nil {
+		s := serviceError.Err.Error()
 		errStr := &s
-		return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+		return c.Status(serviceError.StatusCode).JSON(interfaces.Response{
 			Data: nil,
 			Status: interfaces.Status{
-				Code:    serviceErr.StatusCode,
-				Message: serviceErr.Message,
+				Code:    serviceError.StatusCode,
+				Message: serviceError.Message,
 			},
 			Error: errStr,
 		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(interfaces.Response{
-		Data: nil,
+		Data: response,
 		Status: interfaces.Status{
 			Code:    fiber.StatusOK,
 			Message: "Verification email has been sent",

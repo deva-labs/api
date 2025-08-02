@@ -1,9 +1,9 @@
 package key_token
 
 import (
+	users "deva/src/modules/users/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	users "skypipe/src/modules/users/models"
 	"time"
 )
 

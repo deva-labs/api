@@ -11,7 +11,8 @@ RUN apk update && apk add --no-cache \
     docker-cli \
     zip \
     coreutils \
-    tini
+    tini \
+    font-dejavu
 
 # Cài air
 RUN go install github.com/air-verse/air@latest && \

@@ -1,11 +1,11 @@
 package functions
 
 import (
+	"deva/src/lib/interfaces"
+	"deva/src/utils"
 	"fmt"
 	"net/http"
 	"os"
-	"skypipe/src/lib/interfaces"
-	"skypipe/src/utils"
 )
 
 func validateCertPaths(config interfaces.RemoteBuildConfig) *utils.ServiceError {

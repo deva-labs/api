@@ -1,10 +1,10 @@
 package functions
 
 import (
+	"deva/src/lib/interfaces"
+	"deva/src/utils"
 	"fmt"
 	"github.com/gofiber/websocket/v2"
-	"skypipe/src/lib/interfaces"
-	"skypipe/src/utils"
 	"strings"
 
 	"time"
@@ -16,10 +16,11 @@ func RunProjectWorkflow(c *websocket.Conn, projectName string, env map[string]st
 	baseEnv := map[string]string{
 		"PROJECT_NAME":   projectName,
 		"BASE_DIR":       "/app",
+		"DOCKER_HOST":    "docker-server.tail59bd3a.ts.net",
 		"TLSCACERT_PATH": "/app/store/secrets/ca.pem",
 		"TLSCERT_PATH":   "/app/store/secrets/cert.pem",
 		"TLSKEY_PATH":    "/app/store/secrets/key.pem",
-		"CONTEXT_NAME":   "myremote",
+		"CONTEXT_NAME":   "docker-server",
 	}
 
 	for k, v := range env {
@@ -32,7 +33,7 @@ func RunProjectWorkflow(c *websocket.Conn, projectName string, env map[string]st
 		{Name: "docker-compose.yml", Command: "make create-docker-compose", Action: "creating", EnvVars: baseEnv},
 		{Name: "entrypoint.sh", Command: "make create-entrypoint", Action: "creating", EnvVars: baseEnv},
 		{Name: "docker-bake.hcl", Command: "make create-docker-bake", Action: "creating", EnvVars: baseEnv},
-		{Name: "main.go", Command: "make create-main", Action: "creating", EnvVars: baseEnv},
+		{Name: "runtime.go", Command: "make create-main", Action: "creating", EnvVars: baseEnv},
 		{Name: "Golang", Command: "make install-go", Action: "installing", EnvVars: baseEnv},
 		{Name: "Go modules", Command: "make init-go-modules", Action: "initializing", EnvVars: baseEnv},
 		{Name: "Air live reload", Command: "make install-air", Action: "installing", EnvVars: baseEnv},
@@ -53,7 +54,7 @@ func RunProjectWorkflow(c *websocket.Conn, projectName string, env map[string]st
 
 		if err := utils.ExecWithAnimation(sc, step.Name, step.Command, step.Action, step.EnvVars); err != nil {
 			sc.SafeWrite(websocket.TextMessage, []byte(fmt.Sprintf("❌ Error during %s: %v", step.Name, err)))
-			return fmt.Errorf("step %d (%s) failed: %w", stepNumber, step.Name, err)
+			return fmt.Errorf("steps %d (%s) failed: %w", stepNumber, step.Name, err)
 		}
 
 		if stepNumber < totalSteps {

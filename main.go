@@ -1,14 +1,14 @@
 package main
 
 import (
+	"deva/src/config"
+	"deva/src/routes"
+	"deva/src/services"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
 	"github.com/joho/godotenv"
 	"log"
-	"skypipe/src/config"
-	"skypipe/src/routes"
-	"skypipe/src/services"
 	"time"
 )
 

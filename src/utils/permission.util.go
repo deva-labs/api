@@ -1,6 +1,6 @@
 package utils
 
-import "skypipe/src/lib/dto"
+import "deva/src/lib/dto"
 
 var Permissions = map[string]dto.PermissionInterface{
 	// User permissions

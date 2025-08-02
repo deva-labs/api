@@ -1,14 +1,14 @@
 package projects
 
 import (
+	"deva/src/lib/dto"
+	"deva/src/lib/interfaces"
+	projects "deva/src/modules/projects/services"
+	"deva/src/utils"
+	"deva/store"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"path/filepath"
-	"skypipe/src/lib/dto"
-	"skypipe/src/lib/interfaces"
-	projects "skypipe/src/modules/projects/services"
-	"skypipe/src/utils"
-	"skypipe/store"
 	"time"
 )
 

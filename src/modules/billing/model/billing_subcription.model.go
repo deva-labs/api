@@ -1,7 +1,7 @@
 package billing
 
 import (
-	users "skypipe/src/modules/users/models"
+	users "deva/src/modules/users/models"
 	"time"
 
 	"github.com/google/uuid"

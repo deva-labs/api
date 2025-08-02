@@ -1,12 +1,12 @@
 package verifications
 
 import (
+	"deva/src/lib/dto"
+	"deva/src/lib/interfaces"
+	services "deva/src/modules/verifications/services"
+	"deva/src/utils"
 	"github.com/gofiber/fiber/v2"
 	"net/http"
-	"skypipe/src/lib/dto"
-	"skypipe/src/lib/interfaces"
-	services "skypipe/src/modules/verifications/services"
-	"skypipe/src/utils"
 )
 
 // VerifyCodeAndSetPasswordToken handles the verifications code process and token generation (simple version)
@@ -29,7 +29,7 @@ func VerifyCodeAndSetPasswordToken(c *fiber.Ctx) error {
 	}
 
 	// Call the services to verify the code and generate tokens
-	token, serviceError := services.VerifyCodeAndSetPasswordToken(request.Code, request.Email)
+	token, serviceError := services.VerifyCodeAndSetPasswordToken(request)
 	if serviceError != nil {
 		s := serviceError.Err.Error()
 		errStr := &s

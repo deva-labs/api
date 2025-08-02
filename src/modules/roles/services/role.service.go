@@ -1,12 +1,12 @@
 package roles
 
 import (
+	"deva/src/config"
+	roles "deva/src/modules/roles/models"
 	"errors"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"skypipe/src/config"
-	roles "skypipe/src/modules/roles/models"
 )
 
 // GetRoleByUserID retrieves the role of a user by their user ID

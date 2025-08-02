@@ -1,9 +1,9 @@
 package webhooks
 
 import (
+	projects "deva/src/modules/projects/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	projects "skypipe/src/modules/projects/models"
 	"time"
 )
 

@@ -1,18 +1,19 @@
 package verifications
 
 import (
+	"deva/src/config"
+	"deva/src/lib/dto"
+	key_token "deva/src/modules/key_token/services"
+	users "deva/src/modules/users/models"
+	verifications "deva/src/modules/verifications/models"
+	"deva/src/utils"
+	"errors"
 	"fmt"
 	"gorm.io/gorm"
 	"math/rand"
 	"net/http"
 	"net/smtp"
 	"os"
-	"skypipe/src/config"
-	"skypipe/src/lib/dto"
-	key_token "skypipe/src/modules/key_token/services"
-	users "skypipe/src/modules/users/models"
-	verifications "skypipe/src/modules/verifications/models"
-	"skypipe/src/utils"
 	"time"
 )
 
@@ -106,8 +107,25 @@ func VerifyCodeAndGenerateTokens(code dto.VerificationCodeRequest) (map[string]i
 			Err:        nil,
 		}
 	}
+	// Step 4: Check on redis
+	redisKey := fmt.Sprintf("login_token:%s", user.ID.String())
+	validated, err := utils.VerifyRedisTokenWithUserID(redisKey, code.Token)
+	if err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Token validation error",
+			Err:        err,
+		}
+	}
+	if !validated {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Invalid or expired token",
+			Err:        errors.New("token is not valid"),
+		}
+	}
 
-	// Step 4: Validate code
+	// Step 5: Validate code
 	if verification.Code != code.Code {
 		verification.InputCount++
 		db.Save(&verification)
@@ -132,10 +150,10 @@ func VerifyCodeAndGenerateTokens(code dto.VerificationCodeRequest) (map[string]i
 		}
 	}
 
-	// Step 5: Cleanup verification record
+	// Step 6: Cleanup verification record
 	db.Delete(&verification)
 
-	// Step 6: Invalidate existing tokens
+	// Step 7: Invalidate existing tokens
 	if err := key_token.DeleteAllTokensByUserID(user.ID); err != nil {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusBadRequest,
@@ -144,7 +162,7 @@ func VerifyCodeAndGenerateTokens(code dto.VerificationCodeRequest) (map[string]i
 		}
 	}
 
-	// Step 7: Generate new access/refresh tokens
+	// Step 8: Generate new access/refresh tokens
 	accessToken, refreshToken, err := key_token.GenerateHexTokens(user.ID)
 	if err != nil {
 		return nil, &utils.ServiceError{
@@ -153,48 +171,67 @@ func VerifyCodeAndGenerateTokens(code dto.VerificationCodeRequest) (map[string]i
 		}
 	}
 
-	// Step 8: Return token response
+	// Step 9: Return token response
 	return map[string]interface{}{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 	}, nil
 }
 
-func VerifyCodeAndSetPasswordToken(code, email string) (map[string]interface{}, *utils.ServiceError) {
+func VerifyCodeAndSetPasswordToken(request dto.VerificationCodeRequest) (map[string]interface{}, *utils.ServiceError) {
 	db := config.DB
 	rdb := config.RDB
 	ctx := config.Ctx
 	maxOtpAttempts := utils.ConvertStringToInt(os.Getenv("MAX_OTP_ATTEMPTS"))
+
 	var user users.User
-	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
+	if err := db.Where("email = ?", request.Email).First(&user).Error; err != nil {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("User not found"),
+			Message:    "User not found",
 			Err:        err,
 		}
 	}
 
 	var verification verifications.VerificationCode
-	if err := db.Where("email = ? AND code = ?", email, code).First(&verification).Error; err != nil {
+	if err := db.Where("email = ? AND code = ?", request.Email, request.Code).First(&verification).Error; err != nil {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("Invalid verification code"),
+			Message:    "Invalid verification code",
 			Err:        err,
 		}
 	}
 
-	// Check expired
+	// Check if code is expired
 	if verification.ExpiresAt.Before(time.Now()) {
 		db.Delete(&verification)
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusUnauthorized,
-			Message:    fmt.Sprintf("Invalid verification code"),
+			Message:    "Verification code has expired",
 			Err:        nil,
 		}
 	}
 
+	// Validate with redis db
+	redisKey := fmt.Sprintf("reset_password_token:%s", user.ID.String())
+	validated, err := utils.VerifyRedisTokenWithUserID(redisKey, request.Token)
+	if err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Token validation error",
+			Err:        err,
+		}
+	}
+	if !validated {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Invalid or expired token",
+			Err:        errors.New("token is not valid"),
+		}
+	}
+
 	// Check code match
-	if verification.Code != code {
+	if verification.Code != request.Code {
 		// Use transaction to avoid race condition
 		err := db.Transaction(func(tx *gorm.DB) error {
 			verification.InputCount += 1
@@ -216,7 +253,7 @@ func VerifyCodeAndSetPasswordToken(code, email string) (map[string]interface{}, 
 		})
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusUnauthorized,
-			Message:    fmt.Sprintf("Invalid verification code"),
+			Message:    "Invalid verification code",
 			Err:        err,
 		}
 	}
@@ -225,7 +262,7 @@ func VerifyCodeAndSetPasswordToken(code, email string) (map[string]interface{}, 
 	if err := key_token.DeleteAllTokensByUserID(user.ID); err != nil {
 		return nil, &utils.ServiceError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("could not invalidate existing sessions"),
+			Message:    "Could not invalidate existing sessions",
 			Err:        err,
 		}
 	}
@@ -234,16 +271,15 @@ func VerifyCodeAndSetPasswordToken(code, email string) (map[string]interface{}, 
 	token, err := key_token.GenerateSecureToken(32)
 	if err != nil {
 		return nil, &utils.ServiceError{
-			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("could not generate authentication tokens"),
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Failed to generate token",
 			Err:        err,
 		}
 	}
-
-	// Hash token before storing to Redis
+	// Hash token before storing
 	tokenKey := utils.HashToken(token)
 
-	// TTL from env (default 5m)
+	// Set TTL from env (default 5m)
 	ttl := time.Minute * 5
 	if ttlEnv := os.Getenv("RESET_TOKEN_TTL"); ttlEnv != "" {
 		if parsed, err := time.ParseDuration(ttlEnv); err == nil {
@@ -251,12 +287,21 @@ func VerifyCodeAndSetPasswordToken(code, email string) (map[string]interface{}, 
 		}
 	}
 
-	// Store token in Redis
-	err = rdb.Set(ctx, user.ID.String(), tokenKey, ttl).Err()
+	// Store the new token in Redis using user ID as key
+	err = rdb.Set(ctx, redisKey, tokenKey, ttl).Err()
 	if err != nil {
 		return nil, &utils.ServiceError{
-			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("could not save token"),
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Could not save token",
+			Err:        err,
+		}
+	}
+
+	// Delete the verification code after successful verification
+	if err := db.Delete(&verification).Error; err != nil {
+		return nil, &utils.ServiceError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    "Could not clean up verification code",
 			Err:        err,
 		}
 	}

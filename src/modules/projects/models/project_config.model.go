@@ -1,10 +1,10 @@
 package projects
 
 import (
+	deployments "deva/src/modules/deployments/models"
+	users "deva/src/modules/users/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	deployments "skypipe/src/modules/deployments/models"
-	users "skypipe/src/modules/users/models"
 	"time"
 )
 

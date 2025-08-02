@@ -1,30 +1,31 @@
 package config
 
 import (
+	apiKeys "deva/src/modules/apiKeys/models"
+	billing "deva/src/modules/billing/model"
+	captcha "deva/src/modules/captcha/models"
+	ci "deva/src/modules/ci/models"
+	deployments "deva/src/modules/deployments/models"
+	github "deva/src/modules/github/models"
+	key_token "deva/src/modules/key_token/models"
+	logs "deva/src/modules/logs/models"
+	notifications "deva/src/modules/notifications/models"
+	plans "deva/src/modules/plans/models"
+	projects "deva/src/modules/projects/models"
+	roles "deva/src/modules/roles/models"
+	secrets "deva/src/modules/secrets/models"
+	teams "deva/src/modules/teams/models"
+	templates "deva/src/modules/templates/models"
+	users "deva/src/modules/users/models"
+	verifications "deva/src/modules/verifications/models"
+	webhooks "deva/src/modules/webhooks/models"
+	"deva/src/services"
 	"fmt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"log"
 	"os"
-	apiKeys "skypipe/src/modules/apiKeys/models"
-	billing "skypipe/src/modules/billing/model"
-	ci "skypipe/src/modules/ci/models"
-	deployments "skypipe/src/modules/deployments/models"
-	github "skypipe/src/modules/github/models"
-	key_token "skypipe/src/modules/key_token/models"
-	logs "skypipe/src/modules/logs/models"
-	notifications "skypipe/src/modules/notifications/models"
-	plans "skypipe/src/modules/plans/models"
-	projects "skypipe/src/modules/projects/models"
-	roles "skypipe/src/modules/roles/models"
-	secrets "skypipe/src/modules/secrets/models"
-	teams "skypipe/src/modules/teams/models"
-	templates "skypipe/src/modules/templates/models"
-	users "skypipe/src/modules/users/models"
-	verifications "skypipe/src/modules/verifications/models"
-	webhooks "skypipe/src/modules/webhooks/models"
-	"skypipe/src/services"
 )
 
 var DB *gorm.DB
@@ -116,6 +117,7 @@ func runMigrations(db *gorm.DB) error {
 		secrets.MigrateSecrets,
 		templates.MigrateUsageMetrics,
 		verifications.MigrateVerificationCode,
+		captcha.MigrateCaptcha,
 	}
 
 	// Iterate through all migrations
@@ -241,7 +243,7 @@ func assignPermissionsToAdmin(db *gorm.DB, permissions []roles.Permission) error
 
 func seedRootUser(db *gorm.DB) error {
 	log.Println("🔹 Creating root user...")
-	hashedPassword, err := services.HashPassword("skypipe@root-admin")
+	hashedPassword, err := services.HashPassword("deva@root-admin")
 	if err != nil {
 		return err
 	}
@@ -264,7 +266,7 @@ func seedRootUser(db *gorm.DB) error {
 	// Create root profile
 	rootProfile := users.Profile{
 		UserID:    rootUser.ID,
-		FullName:  "SkyPipe Root Admin",
+		FullName:  "Deva Root Admin",
 		Bio:       "System administrator account",
 		Gender:    "Other",
 		Country:   "Unknown",

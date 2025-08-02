@@ -164,7 +164,7 @@ This guide explains how to configure the Docker Remote API with TLS on a Linux s
 
 ```bash
 # 1. Remove any old Docker versions
-sudo apt-get remove docker docker-engine docker.io containerd runc
+sudo apt-get remove docker docker-runtime docker.io containerd runc
 
 # 2. Install prerequisites
 sudo apt-get update

@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"deva/src/config"
+	key_token "deva/src/modules/key_token/models"
+	users "deva/src/modules/users/models"
+	"deva/src/utils"
 	"github.com/google/uuid"
-	"skypipe/src/config"
-	key_token "skypipe/src/modules/key_token/models"
-	users "skypipe/src/modules/users/models"
-	"skypipe/src/utils"
 )
 
 func GenerateHexTokens(userID uuid.UUID) (string, string, error) {
@@ -199,5 +199,5 @@ func GenerateSecureToken(byteLength int) (string, error) {
 		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 
-	return base64.URLEncoding.EncodeToString(bytes), nil
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
 }

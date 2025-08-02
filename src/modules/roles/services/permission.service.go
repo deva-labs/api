@@ -1,20 +1,20 @@
 package roles
 
 import (
+	"deva/src/config"
+	"deva/src/lib/dto"
+	roles "deva/src/modules/roles/models"
 	"errors"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"skypipe/src/config"
-	"skypipe/src/lib/dto"
-	roles "skypipe/src/modules/roles/models"
 )
 
 // CheckPermission verifies if a role has a specific permission
-func CheckPermission(roleID uuid.UUID, permissionName dto.PermissionInterface) bool {
+func CheckPermission(roleID uuid.UUID, permissionData dto.PermissionInterface) bool {
 	db := config.DB
 
 	var permission roles.Permission
-	if err := db.Where("name = ?", permissionName).First(&permission).Error; err != nil {
+	if err := db.Where("resource = ? AND action = ?", permissionData.Resource, permissionData.Action).First(&permission).Error; err != nil {
 		return false
 	}
 	var exists bool

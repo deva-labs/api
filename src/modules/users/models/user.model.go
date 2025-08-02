@@ -1,9 +1,9 @@
 package users
 
 import (
+	plans "deva/src/modules/plans/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	plans "skypipe/src/modules/plans/models"
 	"time"
 )
 
@@ -13,6 +13,8 @@ type User struct {
 	Name      string         `gorm:"not null"`
 	PlanID    uuid.UUID      `gorm:"type:uuid;not null"`
 	Plan      plans.Plan     `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;foreignKey:PlanID;references:ID;"`
+	ProfileID uuid.UUID      `gorm:"type:uuid"`
+	Profile   *Profile       `gorm:"foreignKey:ProfileID;references:ID"`
 	Password  string         `gorm:"not null"`
 	Status    bool           `gorm:"not null;default:true"`
 	CreatedAt time.Time      `gorm:"autoCreateTime"`

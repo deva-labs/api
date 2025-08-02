@@ -1,12 +1,13 @@
 package middlewares
 
 import (
+	"deva/src/lib/dto"
+	"deva/src/lib/interfaces"
+	key_token "deva/src/modules/key_token/services"
+	roles "deva/src/modules/roles/services"
+	users "deva/src/modules/users/models"
 	"errors"
 	"github.com/gofiber/fiber/v2"
-	"skypipe/src/lib/dto"
-	key_token "skypipe/src/modules/key_token/services"
-	roles "skypipe/src/modules/roles/services"
-	users "skypipe/src/modules/users/models"
 	"strings"
 )
 
@@ -26,10 +27,17 @@ func AuthMiddleware() fiber.Handler {
 			})
 		}
 
-		userInfo, err := key_token.VerifyToken(token)
-		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid token",
+		userInfo, serviceErr := key_token.VerifyToken(token)
+		if serviceErr != nil {
+			s := serviceErr.Err.Error()
+			errStr := &s
+			return c.Status(serviceErr.StatusCode).JSON(interfaces.Response{
+				Data: nil,
+				Status: interfaces.Status{
+					Code:    serviceErr.StatusCode,
+					Message: serviceErr.Message,
+				},
+				Error: errStr,
 			})
 		}
 
@@ -69,7 +77,7 @@ func Authorization(requiredPermission dto.PermissionInterface) fiber.Handler {
 	}
 }
 
-// Tách token từ chuỗi Authorization
+// SplitToken is the function to extract bearer token from Authorization
 func SplitToken(header string) (string, error) {
 	parts := strings.Split(header, " ")
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {

@@ -1,14 +1,14 @@
 package projects
 
 import (
+	"deva/src/functions"
+	"deva/src/utils"
 	"fmt"
 	"github.com/gofiber/websocket/v2"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
-	"skypipe/src/functions"
-	"skypipe/src/utils"
 	"strings"
 	"time"
 )
